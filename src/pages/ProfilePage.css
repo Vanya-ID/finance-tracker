@@ -1,0 +1,137 @@
+.profile-page {
+  padding: 24px 0;
+}
+
+.profile-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.profile-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 32px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.profile-input {
+  padding: 12px 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 16px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.profile-input:focus {
+  outline: none;
+  border-color: var(--border-color-focus);
+}
+
+.profile-input::placeholder {
+  color: var(--text-muted);
+}
+
+.profile-greeting {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--card-after-savings);
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .profile-page {
+    padding: 16px 0;
+  }
+
+  .profile-card {
+    padding: 24px;
+    margin: 0 16px;
+  }
+
+  .profile-title {
+    font-size: 22px;
+    margin-bottom: 24px;
+  }
+
+  .profile-form {
+    gap: 20px;
+  }
+
+  .profile-input {
+    padding: 10px 14px;
+    font-size: 15px;
+    min-height: 44px;
+  }
+
+  .profile-greeting {
+    font-size: 16px;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-page {
+    padding: 12px 0;
+  }
+
+  .profile-card {
+    padding: 20px;
+    margin: 0 12px;
+  }
+
+  .profile-title {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .profile-form {
+    gap: 16px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+  }
+
+  .profile-input {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .profile-greeting {
+    font-size: 15px;
+    padding: 12px;
+  }
+}
+

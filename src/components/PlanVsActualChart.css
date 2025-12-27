@@ -1,0 +1,130 @@
+.chart-container {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chart-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 24px 0;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chart-wrapper h4 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .chart-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .charts-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .chart-wrapper h4 {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-container {
+    padding: 12px;
+  }
+
+  .chart-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+.chart-wrapper h4 {
+  font-size: 14px;
+}
+
+.category-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.category-filter-btn {
+  padding: 6px 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.category-filter-btn:hover {
+  border-color: var(--border-color-focus);
+  background: var(--bg-card-hover);
+}
+
+.category-filter-btn.active {
+  border-color: var(--border-color-focus);
+  background: var(--btn-primary);
+  color: var(--btn-primary-text, white);
+}
+
+.category-filter-btn.collapsed {
+  opacity: 0.5;
+  background: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+.chart-empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .category-filters {
+    gap: 6px;
+  }
+
+  .category-filter-btn {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+}
+}
+
