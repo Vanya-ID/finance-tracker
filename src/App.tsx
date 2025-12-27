@@ -12,7 +12,7 @@ import './App.css'
 const App: React.FC = () => {
   // Используем base path из vite.config.ts для GitHub Pages
   const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
-  
+
   return (
     <BrowserRouter basename={basePath}>
       <Routes>

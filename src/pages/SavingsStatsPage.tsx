@@ -13,7 +13,7 @@ type SortType = 'name' | 'totalDeposited' | 'totalWithdrawn' | 'currentBalance' 
 type SortDirection = 'asc' | 'desc'
 
 export const SavingsStatsPage: React.FC = () => {
-  const { stats, allTransactions, addWithdrawal, getTransactionsForSavings, deleteWithdrawal } = useSavingsStats()
+  const { stats, addWithdrawal, getTransactionsForSavings, deleteWithdrawal } = useSavingsStats()
   const { showNotification } = useNotification()
   const { saveSettingsImmediate, loadSettings: loadSettingsFromDB } = useDatabase()
   const [expandedSavings, setExpandedSavings] = useState<Set<string>>(new Set())

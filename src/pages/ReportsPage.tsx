@@ -15,7 +15,7 @@ const monthNames = [
 export const ReportsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'month' | 'half-year' | 'year'>('month')
   const { data: currentPlan } = useFinancialData()
-  const { reports, getReport, updateReportActual, updateReportPlan, createReport, saveReport, getReportsByHalfYear, getReportsByYear, years } = useReports()
+  const { reports, getReport, updateReportActual, updateReportPlan, getReportsByHalfYear, getReportsByYear, years } = useReports()
   const { showNotification } = useNotification()
 
   const currentDate = new Date()

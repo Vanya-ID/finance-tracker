@@ -14,7 +14,7 @@ export const signInWithGoogle = async (): Promise<User> => {
     // Учитываем base path для GitHub Pages
     const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
     const redirectPath = basePath.endsWith('/') ? basePath.slice(0, -1) + '/login' : basePath + '/login'
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}${redirectPath}`,

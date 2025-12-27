@@ -14,7 +14,7 @@ const monthNames = [
 
 export const MonthlyReportPage: React.FC = () => {
   const { data: currentPlan } = useFinancialData()
-  const { reports, getReport, updateReportActual, updateReportPlan, createReport, saveReport } = useReports()
+  const { reports, getReport, updateReportActual, updateReportPlan } = useReports()
   const { showNotification } = useNotification()
 
   const currentDate = new Date()

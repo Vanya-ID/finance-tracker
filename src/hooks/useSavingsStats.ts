@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { SavingsTransaction, SavingsStats, SavingsItem } from '../types'
+import { SavingsTransaction, SavingsStats } from '../types'
 import { useReports } from './useReports'
 import { useFinancialData } from './useFinancialData'
 import { useDatabase } from './useDatabase'

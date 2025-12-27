@@ -28,7 +28,6 @@ export const useDatabase = () => {
   
   // Состояния загрузки/сохранения
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
   
   // Refs для пропуска сохранения после загрузки
   const skipFinancialSaveRef = useRef(false)
@@ -298,7 +297,6 @@ export const useDatabase = () => {
 
   return {
     saving,
-    loading,
     saveFinancialDataImmediate,
     saveFinancialDataDebounced,
     loadFinancialData,
