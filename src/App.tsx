@@ -10,8 +10,11 @@ import { SavingsStatsPage } from './pages/SavingsStatsPage'
 import './App.css'
 
 const App: React.FC = () => {
+  // Используем base path из vite.config.ts для GitHub Pages
+  const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+  
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basePath}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Layout />}>
