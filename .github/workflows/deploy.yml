@@ -37,13 +37,20 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Copy 404.html to dist
+      - name: Copy 404.html and .nojekyll to dist
         run: |
           if [ -f "404.html" ]; then
             cp 404.html dist/404.html
             echo "✅ 404.html скопирован в dist"
           else
             echo "⚠️ 404.html не найден"
+          fi
+          if [ -f ".nojekyll" ]; then
+            cp .nojekyll dist/.nojekyll
+            echo "✅ .nojekyll скопирован в dist"
+          else
+            touch dist/.nojekyll
+            echo "✅ .nojekyll создан в dist"
           fi
 
       - name: Setup Pages

@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'copy-404',
+      name: 'copy-404-and-nojekyll',
       closeBundle() {
         // Копируем 404.html в dist после сборки
         try {
@@ -19,6 +19,17 @@ export default defineConfig({
           console.log('✅ 404.html скопирован в dist')
         } catch (error) {
           console.error('❌ Ошибка копирования 404.html:', error)
+        }
+        
+        // Создаем .nojekyll файл
+        try {
+          copyFileSync(
+            join(__dirname, '.nojekyll'),
+            join(__dirname, 'dist', '.nojekyll')
+          )
+          console.log('✅ .nojekyll скопирован в dist')
+        } catch (error) {
+          console.error('❌ Ошибка копирования .nojekyll:', error)
         }
       },
     },
