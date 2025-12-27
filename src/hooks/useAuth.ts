@@ -16,6 +16,28 @@ export const useAuth = () => {
       console.log('🔍 [useAuth] Проверка авторизации...')
       console.log('📍 [useAuth] URL:', window.location.href)
       console.log('📍 [useAuth] Hash:', window.location.hash)
+      console.log('📍 [useAuth] Search:', window.location.search)
+      
+      // Проверяем, есть ли code в query параметрах (OAuth редирект от Supabase)
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get('code')
+      
+      if (code) {
+        console.log('✅ [useAuth] Найден OAuth code в query параметрах, обмениваем на сессию...')
+        try {
+          const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error) {
+            console.error('❌ [useAuth] Ошибка обмена кода:', error)
+          } else if (session) {
+            console.log('✅ [useAuth] Сессия получена после обмена кода')
+            // Очищаем query параметры
+            const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+            window.history.replaceState(null, '', basePath + 'login')
+          }
+        } catch (err) {
+          console.error('❌ [useAuth] Ошибка при обмене кода:', err)
+        }
+      }
       
       // Проверяем, есть ли hash параметры в URL (Supabase использует их для OAuth)
       if (window.location.hash) {
