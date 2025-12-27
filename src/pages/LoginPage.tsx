@@ -23,6 +23,45 @@ export const LoginPage: React.FC = () => {
   // Обрабатываем редирект после OAuth и ошибки
   useEffect(() => {
     const checkAuthAfterRedirect = async () => {
+      // Проверяем query параметры (OAuth code может прийти в query string)
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get('code')
+      
+      // Если есть code в query, Supabase должен обменять его на сессию
+      if (code) {
+        console.log('🔄 Обнаружен OAuth code в query параметрах, обмениваем на сессию...')
+        const { supabase } = await import('../services/supabase')
+        
+        try {
+          // Обмениваем код на сессию
+          const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
+          
+          if (error) {
+            console.error('❌ Ошибка обмена кода на сессию:', error)
+            setError('Ошибка авторизации. Пожалуйста, попробуйте снова.')
+            // Очищаем query параметры
+            const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+            window.history.replaceState(null, '', basePath + 'login')
+            return
+          }
+          
+          if (session?.user) {
+            console.log('✅ Сессия получена, пользователь авторизован')
+            // Очищаем query параметры и редиректим
+            const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+            window.history.replaceState(null, '', basePath + 'plan')
+            navigate('/plan', { replace: true })
+          } else {
+            console.log('❌ Сессия не получена после обмена кода')
+            setError('Ошибка авторизации. Пожалуйста, попробуйте снова.')
+          }
+        } catch (err) {
+          console.error('❌ Ошибка при обмене кода:', err)
+          setError('Ошибка авторизации. Пожалуйста, попробуйте снова.')
+        }
+        return
+      }
+      
       // Проверяем, есть ли hash параметры (OAuth редирект)
       if (window.location.hash) {
         const hash = window.location.hash.substring(1)
@@ -46,13 +85,14 @@ export const LoginPage: React.FC = () => {
           }
           
           // Очищаем URL от ошибок
-          window.history.replaceState(null, '', '/login')
+          const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+          window.history.replaceState(null, '', basePath + 'login')
           return
         }
         
         // Если есть access_token, значит успешная авторизация
         if (hash.includes('access_token')) {
-          console.log('🔄 Обнаружен OAuth редирект, проверяем сессию...')
+          console.log('🔄 Обнаружен OAuth редирект в hash, проверяем сессию...')
           // Ждем, пока Supabase обработает сессию
           await new Promise(resolve => setTimeout(resolve, 1000))
           // Проверяем авторизацию снова
@@ -62,7 +102,8 @@ export const LoginPage: React.FC = () => {
           if (session?.user) {
             console.log('✅ Пользователь авторизован, перенаправляем на /plan')
             // Очищаем hash и редиректим
-            window.history.replaceState(null, '', '/plan')
+            const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
+            window.history.replaceState(null, '', basePath + 'plan')
             navigate('/plan', { replace: true })
           } else {
             console.log('❌ Сессия не найдена после редиректа')
