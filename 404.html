@@ -4,29 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Finance Tracker</title>
-  </head>
-  <body>
     <script>
       // GitHub Pages 404 redirect для SPA
       // Редиректим все запросы на index.html с сохранением query параметров и hash
+      (function() {
+        const basePath = '/finance-tracker/';
+        const path = window.location.pathname;
+        const search = window.location.search;
+        const hash = window.location.hash;
+        
+        // Если мы уже на index.html, не делаем редирект
+        if (path.endsWith('/index.html') || path === basePath || path === basePath.slice(0, -1)) {
+          return;
+        }
+        
+        // Редиректим на index.html с сохранением всех параметров
+        const redirectUrl = basePath + 'index.html' + search + hash;
+        window.location.replace(redirectUrl);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Перенаправление...</p>
+    <script>
+      // Fallback редирект
       const basePath = '/finance-tracker/';
       const search = window.location.search;
       const hash = window.location.hash;
-      
-      // Если есть query параметры (например, OAuth code), добавляем их в hash для обработки React Router
-      if (search && !hash) {
-        // Преобразуем query параметры в hash для Supabase OAuth
-        const params = new URLSearchParams(search);
-        const code = params.get('code');
-        if (code) {
-          // Supabase ожидает параметры в hash, преобразуем query в hash
-          window.location.replace(basePath + 'index.html#access_token=' + code + '&type=recovery');
-        } else {
-          window.location.replace(basePath + 'index.html' + search + hash);
-        }
-      } else {
-        window.location.replace(basePath + 'index.html' + search + hash);
-      }
+      window.location.replace(basePath + 'index.html' + search + hash);
     </script>
   </body>
 </html>

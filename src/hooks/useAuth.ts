@@ -8,20 +8,20 @@ export const useAuth = () => {
 
   useEffect(() => {
     let mounted = true
-    
+
     // Обрабатываем редирект после OAuth
     const handleAuthRedirect = async () => {
       const { supabase } = await import('../services/supabase')
-      
+
       console.log('🔍 [useAuth] Проверка авторизации...')
       console.log('📍 [useAuth] URL:', window.location.href)
       console.log('📍 [useAuth] Hash:', window.location.hash)
       console.log('📍 [useAuth] Search:', window.location.search)
-      
+
       // Проверяем, есть ли code в query параметрах (OAuth редирект от Supabase)
       const searchParams = new URLSearchParams(window.location.search)
       const code = searchParams.get('code')
-      
+
       if (code) {
         console.log('✅ [useAuth] Найден OAuth code в query параметрах, обмениваем на сессию...')
         try {
@@ -38,7 +38,7 @@ export const useAuth = () => {
           console.error('❌ [useAuth] Ошибка при обмене кода:', err)
         }
       }
-      
+
       // Проверяем, есть ли hash параметры в URL (Supabase использует их для OAuth)
       if (window.location.hash) {
         console.log('✅ [useAuth] Найден hash в URL, обрабатываем OAuth редирект...')
@@ -46,10 +46,10 @@ export const useAuth = () => {
         // Ждем немного, чтобы Supabase успел обработать сессию
         await new Promise(resolve => setTimeout(resolve, 500))
       }
-      
+
       // Получаем текущую сессию
       const { data: { session }, error } = await supabase.auth.getSession()
-      
+
       if (error) {
         console.error('❌ [useAuth] Ошибка получения сессии:', error)
       } else {
@@ -58,12 +58,12 @@ export const useAuth = () => {
           console.log('👤 [useAuth] Пользователь:', session.user.email)
         }
       }
-      
+
       if (mounted) {
         setUser(session?.user ?? null)
         setLoading(false)
       }
-      
+
       // Очищаем hash из URL после обработки (но только если сессия найдена)
       if (window.location.hash && session?.user) {
         const cleanUrl = window.location.pathname + window.location.search
@@ -71,7 +71,7 @@ export const useAuth = () => {
         console.log('🧹 [useAuth] URL очищен:', cleanUrl)
       }
     }
-    
+
     handleAuthRedirect()
 
     // Подписываемся на изменения состояния авторизации

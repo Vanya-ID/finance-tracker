@@ -19,23 +19,23 @@ export const LoginPage: React.FC = () => {
       navigate('/plan', { replace: true })
     }
   }, [isAuthenticated, authLoading, navigate])
-  
+
   // Обрабатываем редирект после OAuth и ошибки
   useEffect(() => {
     const checkAuthAfterRedirect = async () => {
       // Проверяем query параметры (OAuth code может прийти в query string)
       const searchParams = new URLSearchParams(window.location.search)
       const code = searchParams.get('code')
-      
+
       // Если есть code в query, Supabase должен обменять его на сессию
       if (code) {
         console.log('🔄 Обнаружен OAuth code в query параметрах, обмениваем на сессию...')
         const { supabase } = await import('../services/supabase')
-        
+
         try {
           // Обмениваем код на сессию
           const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
-          
+
           if (error) {
             console.error('❌ Ошибка обмена кода на сессию:', error)
             setError('Ошибка авторизации. Пожалуйста, попробуйте снова.')
@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
             window.history.replaceState(null, '', basePath + 'login')
             return
           }
-          
+
           if (session?.user) {
             console.log('✅ Сессия получена, пользователь авторизован')
             // Очищаем query параметры и редиректим
@@ -61,12 +61,12 @@ export const LoginPage: React.FC = () => {
         }
         return
       }
-      
+
       // Проверяем, есть ли hash параметры (OAuth редирект)
       if (window.location.hash) {
         const hash = window.location.hash.substring(1)
         const params = new URLSearchParams(hash)
-        
+
         // Проверяем на ошибки
         if (params.get('error')) {
           const errorCode = params.get('error_code')
@@ -76,20 +76,20 @@ export const LoginPage: React.FC = () => {
             error_code: errorCode,
             error_description: errorDesc
           })
-          
+
           // Показываем понятное сообщение об ошибке
           if (errorCode === 'unexpected_failure' && errorDesc?.includes('Unable+to+exchange+external+code')) {
             setError('Ошибка авторизации: проверьте настройки Google OAuth в Supabase. Убедитесь, что Client ID и Client Secret правильные.')
           } else {
             setError(`Ошибка авторизации: ${params.get('error')}`)
           }
-          
+
           // Очищаем URL от ошибок
           const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
           window.history.replaceState(null, '', basePath + 'login')
           return
         }
-        
+
         // Если есть access_token, значит успешная авторизация
         if (hash.includes('access_token')) {
           console.log('🔄 Обнаружен OAuth редирект в hash, проверяем сессию...')
@@ -111,7 +111,7 @@ export const LoginPage: React.FC = () => {
         }
       }
     }
-    
+
     checkAuthAfterRedirect()
   }, [navigate])
 
