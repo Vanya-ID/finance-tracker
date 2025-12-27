@@ -6,20 +6,26 @@
     <title>Finance Tracker</title>
     <script>
       // GitHub Pages 404 redirect для SPA
-      // Редиректим все запросы на index.html с сохранением query параметров и hash
+      // Редиректим все запросы на корень (без index.html) с сохранением query параметров и hash
       (function() {
         const basePath = '/finance-tracker/';
         const path = window.location.pathname;
         const search = window.location.search;
         const hash = window.location.hash;
         
-        // Если мы уже на index.html, не делаем редирект
-        if (path.endsWith('/index.html') || path === basePath || path === basePath.slice(0, -1)) {
+        // Убираем /index.html из пути, если он есть
+        let cleanPath = path.replace(/\/index\.html$/, '');
+        if (!cleanPath.endsWith('/') && cleanPath !== basePath.slice(0, -1)) {
+          cleanPath += '/';
+        }
+        
+        // Если путь уже корневой, не делаем редирект
+        if (path === basePath || path === basePath.slice(0, -1)) {
           return;
         }
         
-        // Редиректим на index.html с сохранением всех параметров
-        const redirectUrl = basePath + 'index.html' + search + hash;
+        // Редиректим на корень с сохранением всех параметров
+        const redirectUrl = basePath + search + hash;
         window.location.replace(redirectUrl);
       })();
     </script>
@@ -27,11 +33,11 @@
   <body>
     <p>Перенаправление...</p>
     <script>
-      // Fallback редирект
+      // Fallback редирект на корень (без index.html)
       const basePath = '/finance-tracker/';
       const search = window.location.search;
       const hash = window.location.hash;
-      window.location.replace(basePath + 'index.html' + search + hash);
+      window.location.replace(basePath + search + hash);
     </script>
   </body>
 </html>
