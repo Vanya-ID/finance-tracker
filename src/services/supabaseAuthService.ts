@@ -10,19 +10,26 @@ export const signInWithGoogle = async (): Promise<User> => {
     }
 
     // Инициируем OAuth вход
-    // Редиректим на /login, чтобы LoginPage мог обработать OAuth редирект
-    // Учитываем base path для GitHub Pages
-    const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
-    const redirectPath = basePath.endsWith('/') ? basePath.slice(0, -1) + '/login' : basePath + '/login'
+    // Формируем правильный redirect URL для GitHub Pages
+    const basePath = import.meta.env.BASE_URL || '/'
+    // Убираем лишние слеши
+    const cleanBasePath = basePath.replace(/\/+$/, '')
+    const redirectUrl = `${window.location.origin}${cleanBasePath}/login`
+    
+    console.log('🔑 [signInWithGoogle] Redirect URL:', redirectUrl)
+    console.log('🔑 [signInWithGoogle] Origin:', window.location.origin)
+    console.log('🔑 [signInWithGoogle] Base path:', cleanBasePath)
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${redirectPath}`,
+        redirectTo: redirectUrl,
+        skipBrowserRedirect: false,
       },
     })
 
     if (error) {
-      console.error('Ошибка входа через Google:', error)
+      console.error('❌ [signInWithGoogle] Ошибка входа через Google:', error)
       throw error
     }
 
@@ -34,7 +41,7 @@ export const signInWithGoogle = async (): Promise<User> => {
     if (error.message === 'Redirecting to Google...') {
       throw error
     }
-    console.error('Ошибка входа через Google:', error)
+    console.error('❌ [signInWithGoogle] Ошибка входа через Google:', error)
     throw error
   }
 }

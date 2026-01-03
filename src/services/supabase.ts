@@ -23,6 +23,8 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     detectSessionInUrl: true,
     flowType: 'pkce', // Используем PKCE для безопасности
     storage: window.localStorage, // Явно указываем хранилище
+    storageKey: 'finance-tracker-auth', // Уникальный ключ для localStorage
+    debug: true, // Включаем отладку для диагностики
   },
 })
 

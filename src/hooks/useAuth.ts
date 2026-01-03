@@ -15,47 +15,79 @@ export const useAuth = () => {
 
       console.log('🔍 [useAuth] Проверка авторизации...')
       console.log('📍 [useAuth] URL:', window.location.href)
+      console.log('📍 [useAuth] Pathname:', window.location.pathname)
       console.log('📍 [useAuth] Hash:', window.location.hash)
       console.log('📍 [useAuth] Search:', window.location.search)
 
-      // Проверяем, есть ли code в query параметрах (OAuth редирект от Supabase)
+      // Проверяем, есть ли code в query параметрах (PKCE OAuth редирект от Supabase)
       const searchParams = new URLSearchParams(window.location.search)
       const code = searchParams.get('code')
+      const error = searchParams.get('error')
+      const errorDescription = searchParams.get('error_description')
 
+      // Если есть ошибка в URL, логируем её
+      if (error) {
+        console.error('❌ [useAuth] OAuth ошибка в URL:', {
+          error,
+          error_description: errorDescription
+        })
+      }
+
+      // Обрабатываем PKCE code
       if (code) {
-        console.log('✅ [useAuth] Найден OAuth code в query параметрах, обмениваем на сессию...')
+        console.log('✅ [useAuth] Найден OAuth code в query параметрах')
+        console.log('🔄 [useAuth] Обмениваем code на сессию...')
         try {
-          const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
-          if (error) {
-            console.error('❌ [useAuth] Ошибка обмена кода:', error)
-          } else if (session) {
-            console.log('✅ [useAuth] Сессия получена после обмена кода')
-            // Очищаем query параметры
-            const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
-            window.history.replaceState(null, '', basePath + 'login')
+          const { data: { session }, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (exchangeError) {
+            console.error('❌ [useAuth] Ошибка обмена кода:', exchangeError)
+            setUser(null)
+            setLoading(false)
+            return
+          }
+
+          if (session?.user) {
+            console.log('✅ [useAuth] Сессия успешно получена!')
+            console.log('👤 [useAuth] Пользователь:', session.user.email)
+            console.log('🔑 [useAuth] Access token:', session.access_token ? 'присутствует' : 'отсутствует')
+
+            if (mounted) {
+              setUser(session.user)
+              setLoading(false)
+            }
+
+            // Очищаем query параметры из URL
+            const cleanUrl = window.location.pathname
+            window.history.replaceState(null, '', cleanUrl)
+            console.log('🧹 [useAuth] URL очищен:', cleanUrl)
+            return
           }
         } catch (err) {
-          console.error('❌ [useAuth] Ошибка при обмене кода:', err)
+          console.error('❌ [useAuth] Исключение при обмене кода:', err)
+          setUser(null)
+          setLoading(false)
+          return
         }
       }
 
-      // Проверяем, есть ли hash параметры в URL (Supabase использует их для OAuth)
-      if (window.location.hash) {
-        console.log('✅ [useAuth] Найден hash в URL, обрабатываем OAuth редирект...')
-        // Supabase автоматически обработает hash параметры через detectSessionInUrl
-        // Ждем немного, чтобы Supabase успел обработать сессию
-        await new Promise(resolve => setTimeout(resolve, 500))
+      // Проверяем, есть ли hash параметры в URL (legacy implicit flow)
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log('✅ [useAuth] Найден access_token в hash (implicit flow)')
+        // Ждем, пока Supabase обработает hash через detectSessionInUrl
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
 
-      // Получаем текущую сессию
-      const { data: { session }, error } = await supabase.auth.getSession()
+      // Получаем текущую сессию из localStorage
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-      if (error) {
-        console.error('❌ [useAuth] Ошибка получения сессии:', error)
+      if (sessionError) {
+        console.error('❌ [useAuth] Ошибка получения сессии:', sessionError)
       } else {
-        console.log('📦 [useAuth] Сессия:', session ? 'найдена' : 'не найдена')
+        console.log('📦 [useAuth] Проверка сессии:', session ? 'найдена' : 'не найдена')
         if (session?.user) {
           console.log('👤 [useAuth] Пользователь:', session.user.email)
+          console.log('🔑 [useAuth] Expires at:', new Date(session.expires_at! * 1000).toLocaleString())
         }
       }
 
@@ -64,11 +96,11 @@ export const useAuth = () => {
         setLoading(false)
       }
 
-      // Очищаем hash из URL после обработки (но только если сессия найдена)
+      // Очищаем hash из URL после обработки (если сессия найдена)
       if (window.location.hash && session?.user) {
         const cleanUrl = window.location.pathname + window.location.search
         window.history.replaceState(null, '', cleanUrl)
-        console.log('🧹 [useAuth] URL очищен:', cleanUrl)
+        console.log('🧹 [useAuth] Hash очищен из URL')
       }
     }
 
