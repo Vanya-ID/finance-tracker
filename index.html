@@ -5,6 +5,26 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Учет доходов и расходов</title>
+    <script>
+      // Обрабатываем параметр p из 404.html ДО загрузки React
+      // Это критично для OAuth flow, чтобы useAuth увидел правильный URL
+      (function() {
+        const searchParams = new URLSearchParams(window.location.search);
+        const redirectPath = searchParams.get('p');
+        
+        if (redirectPath) {
+          // Удаляем параметр p
+          searchParams.delete('p');
+          const remainingParams = searchParams.toString();
+          const newSearch = remainingParams ? '?' + remainingParams : '';
+          const newUrl = redirectPath + newSearch + window.location.hash;
+          
+          console.log('[index.html] Restoring path from 404:', newUrl);
+          // Используем replaceState, чтобы изменить URL без перезагрузки
+          window.history.replaceState(null, '', newUrl);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
