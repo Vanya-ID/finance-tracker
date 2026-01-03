@@ -13,14 +13,20 @@ export const useAuth = () => {
     const handleAuthRedirect = async () => {
       const { supabase } = await import('../services/supabase')
 
+      // ВАЖНО: Сохраняем URL параметры ДО любых действий React Router
+      const currentUrl = window.location.href
+      const currentSearch = window.location.search
+      const currentHash = window.location.hash
+
       console.log('🔍 [useAuth] Проверка авторизации...')
-      console.log('📍 [useAuth] URL:', window.location.href)
+      console.log('📍 [useAuth] URL:', currentUrl)
       console.log('📍 [useAuth] Pathname:', window.location.pathname)
-      console.log('📍 [useAuth] Hash:', window.location.hash)
-      console.log('📍 [useAuth] Search:', window.location.search)
+      console.log('📍 [useAuth] Hash:', currentHash)
+      console.log('📍 [useAuth] Search:', currentSearch)
 
       // Проверяем, есть ли code в query параметрах (PKCE OAuth редирект от Supabase)
-      const searchParams = new URLSearchParams(window.location.search)
+      // Используем сохраненный currentSearch, а не window.location.search
+      const searchParams = new URLSearchParams(currentSearch)
       const code = searchParams.get('code')
       const error = searchParams.get('error')
       const errorDescription = searchParams.get('error_description')
@@ -72,7 +78,7 @@ export const useAuth = () => {
       }
 
       // Проверяем, есть ли hash параметры в URL (legacy implicit flow)
-      if (window.location.hash && window.location.hash.includes('access_token')) {
+      if (currentHash && currentHash.includes('access_token')) {
         console.log('✅ [useAuth] Найден access_token в hash (implicit flow)')
         // Ждем, пока Supabase обработает hash через detectSessionInUrl
         await new Promise(resolve => setTimeout(resolve, 1000))

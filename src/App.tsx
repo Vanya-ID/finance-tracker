@@ -13,14 +13,6 @@ const App: React.FC = () => {
   // Используем base path из vite.config.ts для GitHub Pages
   const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
   
-  // Редиректим с /index.html на корень
-  React.useEffect(() => {
-    if (window.location.pathname.endsWith('/index.html')) {
-      const newPath = window.location.pathname.replace('/index.html', '/')
-      window.history.replaceState(null, '', newPath + window.location.search + window.location.hash)
-    }
-  }, [])
-  
   return (
     <BrowserRouter basename={basePath}>
       <Routes>
@@ -32,8 +24,8 @@ const App: React.FC = () => {
           <Route path="reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
           <Route path="savings-stats" element={<ProtectedRoute><SavingsStatsPage /></ProtectedRoute>} />
         </Route>
-        {/* Fallback для любых других маршрутов, включая /index.html */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Fallback для любых других маршрутов */}
+        <Route path="*" element={<Navigate to="/plan" replace />} />
       </Routes>
     </BrowserRouter>
   )
