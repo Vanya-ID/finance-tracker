@@ -13,6 +13,23 @@ const App: React.FC = () => {
   // Используем base path из vite.config.ts для GitHub Pages
   const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
   
+  // Обрабатываем редирект с 404.html
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const redirectPath = searchParams.get('p')
+    
+    if (redirectPath) {
+      // Удаляем параметр p из URL
+      searchParams.delete('p')
+      const remainingParams = searchParams.toString()
+      const newSearch = remainingParams ? '?' + remainingParams : ''
+      const newUrl = redirectPath + newSearch + window.location.hash
+      
+      console.log('[App] 404 redirect detected, restoring path:', newUrl)
+      window.history.replaceState(null, '', newUrl)
+    }
+  }, [])
+  
   return (
     <BrowserRouter basename={basePath}>
       <Routes>
