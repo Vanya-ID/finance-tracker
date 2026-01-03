@@ -12,20 +12,20 @@ import './App.css'
 const App: React.FC = () => {
   // Используем base path из vite.config.ts для GitHub Pages
   const basePath = import.meta.env.BASE_URL || '/finance-tracker/'
-  
+
   return (
     <BrowserRouter basename={basePath}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/plan" replace />} />
+          <Route index element={<Navigate to="plan" replace />} />
           <Route path="plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
           <Route path="savings-stats" element={<ProtectedRoute><SavingsStatsPage /></ProtectedRoute>} />
         </Route>
         {/* Fallback для любых других маршрутов */}
-        <Route path="*" element={<Navigate to="/plan" replace />} />
+        <Route path="*" element={<Navigate to="plan" replace />} />
       </Routes>
     </BrowserRouter>
   )
