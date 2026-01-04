@@ -13,11 +13,13 @@
         const redirectPath = searchParams.get('p');
         
         if (redirectPath) {
+          // Добавляем базовый путь обратно
+          const basePath = '/finance-tracker';
           // Удаляем параметр p
           searchParams.delete('p');
           const remainingParams = searchParams.toString();
           const newSearch = remainingParams ? '?' + remainingParams : '';
-          const newUrl = redirectPath + newSearch + window.location.hash;
+          const newUrl = basePath + redirectPath + newSearch + window.location.hash;
           
           console.log('[index.html] Restoring path from 404:', newUrl);
           // Используем replaceState, чтобы изменить URL без перезагрузки
