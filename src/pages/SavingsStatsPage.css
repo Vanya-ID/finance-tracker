@@ -662,5 +662,61 @@
   .total-stat-value {
     font-size: 18px;
   }
+
+  /* Адаптивные стили для групп */
+  .savings-stat-card.child-card {
+    margin-left: 20px;
+  }
+}
+
+/* Стили для групп в статистике */
+.savings-stat-card.group-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.05) 100%);
+  border: 2px solid rgba(99, 102, 241, 0.3);
+}
+
+.savings-stat-card.group-card:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.15);
+}
+
+.savings-stat-card.child-card {
+  margin-left: 40px;
+  border-left: 3px solid rgba(99, 102, 241, 0.3);
+  background: var(--bg-card);
+}
+
+.group-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  transition: all 0.2s;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  min-width: 32px;
+}
+
+.group-toggle-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--text-primary);
+}
+
+.group-badge-stats {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(99, 102, 241, 0.2);
+  color: rgba(99, 102, 241, 1);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
 }
 

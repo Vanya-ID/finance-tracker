@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useSavingsStats } from '../hooks/useSavingsStats'
 import { useNotification } from '../contexts/NotificationContext'
 import { useDatabase } from '../hooks/useDatabase'
+import { useFinancialData } from '../hooks/useFinancialData'
 import './SavingsStatsPage.css'
 
 const monthNames = [
@@ -16,7 +17,9 @@ export const SavingsStatsPage: React.FC = () => {
   const { stats, addWithdrawal, getTransactionsForSavings, deleteWithdrawal } = useSavingsStats()
   const { showNotification } = useNotification()
   const { saveSettingsImmediate, loadSettings: loadSettingsFromDB } = useDatabase()
+  const { data, getSavingsChildren } = useFinancialData()
   const [expandedSavings, setExpandedSavings] = useState<Set<string>>(new Set())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [selectedSavings, setSelectedSavings] = useState<Set<string>>(new Set())
   const [selectedSavingsLoading, setSelectedSavingsLoading] = useState(true)
 
@@ -59,7 +62,25 @@ export const SavingsStatsPage: React.FC = () => {
     })
   }
 
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(groupId)) {
+        newSet.delete(groupId)
+      } else {
+        newSet.add(groupId)
+      }
+      return newSet
+    })
+  }
+
   const toggleSelected = async (savingsId: string) => {
+    // Не позволяем выбирать группы
+    const savingsItem = data.savings.find(s => s.id === savingsId)
+    if (savingsItem?.isGroup) {
+      return
+    }
+    
     setSelectedSavings((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(savingsId)) {
@@ -76,7 +97,11 @@ export const SavingsStatsPage: React.FC = () => {
   }
 
   const selectAll = async () => {
-    const allIds = new Set(stats.map((stat) => stat.savingsId))
+    // Выбираем только обычные копилки (не группы)
+    const allIds = new Set(stats.filter((stat) => {
+      const savingsItem = data.savings.find(s => s.id === stat.savingsId)
+      return !savingsItem?.isGroup
+    }).map((stat) => stat.savingsId))
     setSelectedSavings(allIds)
     try {
       await saveSettingsImmediate({ selectedSavingsForStats: Array.from(allIds) })
@@ -150,11 +175,38 @@ export const SavingsStatsPage: React.FC = () => {
     return `${monthNames[month - 1]} ${year}`
   }
 
-  // Сортировка статистики
+  // Сортировка статистики и создание иерархической структуры
   const sortedStats = useMemo(() => {
-    const result = [...stats]
+    // Разделяем на группы и обычные копилки
+    const groups = data.savings.filter(s => s.isGroup && !s.parentId)
+    const topLevelStats = stats.filter(stat => {
+      const savingsItem = data.savings.find(s => s.id === stat.savingsId)
+      return !savingsItem?.parentId && !savingsItem?.isGroup
+    })
+    
+    // Создаем статистику для групп
+    const groupStats = groups.map(group => {
+      const children = getSavingsChildren ? getSavingsChildren(group.id) : []
+      const childStats = stats.filter(stat => children.some(c => c.id === stat.savingsId))
+      
+      const groupStat = {
+        savingsId: group.id,
+        savingsName: group.name,
+        icon: group.icon,
+        totalDeposited: childStats.reduce((sum, s) => sum + s.totalDeposited, 0),
+        totalWithdrawn: childStats.reduce((sum, s) => sum + s.totalWithdrawn, 0),
+        currentBalance: childStats.reduce((sum, s) => sum + s.currentBalance, 0),
+        isGroup: true,
+        children: childStats,
+      }
+      return groupStat
+    })
+    
+    // Объединяем и сортируем
+    const combined = [...groupStats, ...topLevelStats.map(s => ({ ...s, isGroup: false, children: [] }))]
+    
     if (sortType !== 'none') {
-      result.sort((a, b) => {
+      combined.sort((a, b) => {
         let comparison = 0
         switch (sortType) {
           case 'name':
@@ -175,8 +227,18 @@ export const SavingsStatsPage: React.FC = () => {
         return sortDirection === 'asc' ? comparison : -comparison
       })
     }
-    return result
-  }, [stats, sortType, sortDirection])
+    
+    // Создаем плоский список для отображения
+    const flatList: any[] = []
+    combined.forEach(item => {
+      flatList.push(item)
+      if (item.isGroup && expandedGroups.has(item.savingsId)) {
+        flatList.push(...item.children.map(c => ({ ...c, isChild: true })))
+      }
+    })
+    
+    return flatList
+  }, [stats, sortType, sortDirection, data.savings, getSavingsChildren, expandedGroups])
 
   const totalStats = stats.reduce(
     (acc, stat) => ({
@@ -314,22 +376,43 @@ export const SavingsStatsPage: React.FC = () => {
             {sortedStats.map((stat) => {
               const transactions = getTransactionsForSavings(stat.savingsId)
               const isExpanded = expandedSavings.has(stat.savingsId)
+              const isGroup = stat.isGroup === true
+              const isChild = stat.isChild === true
+              const isGroupExpanded = expandedGroups.has(stat.savingsId)
+              const canSelect = !isGroup
 
               return (
-                <div key={stat.savingsId} className={`savings-stat-card ${selectedSavings.has(stat.savingsId) ? 'selected' : ''}`}>
+                <div 
+                  key={stat.savingsId} 
+                  className={`savings-stat-card ${selectedSavings.has(stat.savingsId) ? 'selected' : ''} ${isGroup ? 'group-card' : ''} ${isChild ? 'child-card' : ''}`}
+                >
                   <div className="savings-stat-header">
+                    {isGroup && (
+                      <button
+                        className="group-toggle-btn"
+                        onClick={() => toggleGroupExpanded(stat.savingsId)}
+                        title={isGroupExpanded ? 'Свернуть' : 'Развернуть'}
+                      >
+                        {isGroupExpanded ? '▼' : '▶'}
+                      </button>
+                    )}
                     <div className="savings-stat-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedSavings.has(stat.savingsId)}
-                        onChange={() => toggleSelected(stat.savingsId)}
-                        title="Выбрать копилку"
-                      />
+                      {canSelect && (
+                        <input
+                          type="checkbox"
+                          checked={selectedSavings.has(stat.savingsId)}
+                          onChange={() => toggleSelected(stat.savingsId)}
+                          title="Выбрать копилку"
+                        />
+                      )}
                     </div>
                     <div className="savings-stat-info">
                       <span className="savings-icon">{stat.icon || '💰'}</span>
                       <div className="savings-info-text">
-                        <h3 className="savings-name">{stat.savingsName}</h3>
+                        <h3 className="savings-name">
+                          {stat.savingsName}
+                          {isGroup && <span className="group-badge-stats">группа</span>}
+                        </h3>
                         <div className="savings-stats-row">
                           <div className="savings-stat-mini">
                             <span className="mini-label">Отложено:</span>
@@ -349,26 +432,30 @@ export const SavingsStatsPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="savings-stat-actions">
-                      <button
-                        className="btn-withdrawal"
-                        onClick={() => handleOpenWithdrawalModal(stat.savingsId, stat.savingsName)}
-                        title="Добавить вычет"
-                      >
-                        ➖ Вычет
-                      </button>
-                      {transactions.length > 0 && (
-                        <button
-                          className="btn-toggle-history"
-                          onClick={() => toggleExpanded(stat.savingsId)}
-                          title={isExpanded ? 'Скрыть историю' : 'Показать историю'}
-                        >
-                          {isExpanded ? '▲ История' : '▼ История'}
-                        </button>
+                      {!isGroup && (
+                        <>
+                          <button
+                            className="btn-withdrawal"
+                            onClick={() => handleOpenWithdrawalModal(stat.savingsId, stat.savingsName)}
+                            title="Добавить вычет"
+                          >
+                            ➖ Вычет
+                          </button>
+                          {transactions.length > 0 && (
+                            <button
+                              className="btn-toggle-history"
+                              onClick={() => toggleExpanded(stat.savingsId)}
+                              title={isExpanded ? 'Скрыть историю' : 'Показать историю'}
+                            >
+                              {isExpanded ? '▲ История' : '▼ История'}
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
-                  {isExpanded && transactions.length > 0 && (
+                  {!isGroup && isExpanded && transactions.length > 0 && (
                     <div className="transactions-list">
                       <table className="transactions-table">
                         <thead>

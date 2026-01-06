@@ -12,13 +12,20 @@ interface SavingsSectionProps {
   totalIncome: number
   onSavingsChange: (id: string, amount: number, isCustom: boolean) => void
   onExchangeRateChange: (rate: number) => void
-  onAddCategory: (name: string) => void
+  onAddCategory: (name: string, parentId?: string) => void
   onRemoveCategory: (id: string) => void
   onCategoryNameChange: (id: string, name: string) => void
   onSavingsIconChange: (id: string, icon: string) => void
   onReorder: (fromIndex: number, toIndex: number) => void
   isCollapsed?: boolean
   onToggleCollapse?: () => void
+  // Новые props для работы с группами
+  onAddGroup?: (name: string) => void
+  onConvertToGroup?: (id: string) => void
+  onConvertToSavings?: (id: string) => void
+  onMoveToGroup?: (savingsId: string, groupId: string | null) => void
+  getSavingsChildren?: (parentId: string) => SavingsItem[]
+  calculateGroupTotals?: (groupId: string) => { totalAmount: number; totalAmountUsd: number }
 }
 
 type SortType = 'name' | 'amount' | 'percentage' | 'none'
@@ -39,9 +46,18 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
   onReorder,
   isCollapsed = false,
   onToggleCollapse,
+  onAddGroup,
+  onConvertToGroup,
+  onConvertToSavings,
+  onMoveToGroup,
+  getSavingsChildren,
+  calculateGroupTotals,
 }) => {
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newGroupName, setNewGroupName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null)
+  const [newChildName, setNewChildName] = useState('')
   const [editingName, setEditingName] = useState('')
   const [iconPickerId, setIconPickerId] = useState<string | null>(null)
   const [filterText, setFilterText] = useState('')
@@ -49,13 +65,59 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [contextMenuId, setContextMenuId] = useState<string | null>(null)
 
-  const total = savings.reduce((sum, item) => sum + Math.round(item.amount), 0)
-  const totalUsd = savings.reduce((sum, item) => sum + item.amountUsd, 0)
+  // Закрываем контекстное меню при клике вне его
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuId) {
+        const target = e.target as HTMLElement
+        if (!target.closest('.context-menu') && !target.closest('.context-menu-btn')) {
+          setContextMenuId(null)
+        }
+      }
+    }
+    
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [contextMenuId])
+
+  // Вычисляем суммы только для обычных копилок (не групп) и их дочерних элементов
+  const total = savings.reduce((sum, item) => {
+    if (item.isGroup) {
+      // Для групп берем сумму дочерних элементов
+      if (calculateGroupTotals) {
+        const { totalAmount } = calculateGroupTotals(item.id)
+        return sum + Math.round(totalAmount)
+      }
+      return sum
+    }
+    return sum + Math.round(item.amount)
+  }, 0)
+  
+  const totalUsd = savings.reduce((sum, item) => {
+    if (item.isGroup) {
+      // Для групп берем сумму дочерних элементов
+      if (calculateGroupTotals) {
+        const { totalAmountUsd } = calculateGroupTotals(item.id)
+        return sum + totalAmountUsd
+      }
+      return sum
+    }
+    return sum + item.amountUsd
+  }, 0)
+  
   const availableForSavings = savingsPercentage > 0 ? Math.round(totalIncome * savingsPercentage / 100) : availableAmount
   const availablePercentage = savingsPercentage > 0 ? savingsPercentage : (totalIncome > 0 ? (availableAmount / totalIncome) * 100 : 0)
   const totalPercentage = totalIncome > 0
-    ? savings.reduce((sum, item) => sum + (Math.round(item.amount) / totalIncome * 100), 0)
+    ? savings.reduce((sum, item) => {
+        if (item.isGroup && calculateGroupTotals) {
+          const { totalAmount } = calculateGroupTotals(item.id)
+          return sum + (Math.round(totalAmount) / totalIncome * 100)
+        }
+        return sum + (Math.round(item.amount) / totalIncome * 100)
+      }, 0)
     : 0
   const isOverBudget = availableForSavings > 0 && total > availableForSavings
   const overBudgetAmount = isOverBudget ? total - availableForSavings : 0
@@ -65,6 +127,39 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
       onAddCategory(newCategoryName.trim())
       setNewCategoryName('')
     }
+  }
+
+  const handleAddGroup = () => {
+    if (newGroupName.trim() && onAddGroup) {
+      onAddGroup(newGroupName.trim())
+      setNewGroupName('')
+    }
+  }
+
+  const handleAddChildToGroup = (groupId: string) => {
+    if (newChildName.trim()) {
+      onAddCategory(newChildName.trim(), groupId)
+      setNewChildName('')
+      setAddingToGroupId(null)
+      // Автоматически разворачиваем группу, чтобы показать новую копилку
+      setCollapsedGroups((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(groupId)
+        return newSet
+      })
+    }
+  }
+
+  const toggleGroupCollapse = (groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(groupId)) {
+        newSet.delete(groupId)
+      } else {
+        newSet.add(groupId)
+      }
+      return newSet
+    })
   }
 
   const handleStartEdit = (id: string, currentName: string) => {
@@ -81,18 +176,19 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
   }
 
   const filteredAndSortedSavings = useMemo(() => {
-    let result = [...savings]
+    // Получаем только элементы верхнего уровня (без родителя)
+    let topLevelItems = savings.filter((item) => !item.parentId)
 
     // Фильтрация по названию
     if (filterText.trim()) {
-      result = result.filter((saving) =>
+      topLevelItems = topLevelItems.filter((saving) =>
         saving.name.toLowerCase().includes(filterText.toLowerCase().trim())
       )
     }
 
     // Сортировка
     if (sortType !== 'none') {
-      result.sort((a, b) => {
+      topLevelItems.sort((a, b) => {
         let comparison = 0
 
         switch (sortType) {
@@ -100,11 +196,24 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
             comparison = a.name.localeCompare(b.name, 'ru')
             break
           case 'amount':
-            comparison = a.amount - b.amount
+            // Для групп используем сумму дочерних элементов
+            const aAmount = a.isGroup && calculateGroupTotals 
+              ? calculateGroupTotals(a.id).totalAmount 
+              : a.amount
+            const bAmount = b.isGroup && calculateGroupTotals 
+              ? calculateGroupTotals(b.id).totalAmount 
+              : b.amount
+            comparison = aAmount - bAmount
             break
           case 'percentage':
-            const aPercent = totalIncome > 0 ? (a.amount / totalIncome) * 100 : 0
-            const bPercent = totalIncome > 0 ? (b.amount / totalIncome) * 100 : 0
+            const aAmount2 = a.isGroup && calculateGroupTotals 
+              ? calculateGroupTotals(a.id).totalAmount 
+              : a.amount
+            const bAmount2 = b.isGroup && calculateGroupTotals 
+              ? calculateGroupTotals(b.id).totalAmount 
+              : b.amount
+            const aPercent = totalIncome > 0 ? (aAmount2 / totalIncome) * 100 : 0
+            const bPercent = totalIncome > 0 ? (bAmount2 / totalIncome) * 100 : 0
             comparison = aPercent - bPercent
             break
         }
@@ -113,8 +222,25 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
       })
     }
 
-    return result
-  }, [savings, filterText, sortType, sortDirection, totalIncome])
+    // Создаем плоский список с дочерними элементами
+    const flatList: SavingsItem[] = []
+    topLevelItems.forEach((item) => {
+      flatList.push(item)
+      // Если это группа и она не свернута, добавляем дочерние элементы
+      if (item.isGroup && !collapsedGroups.has(item.id) && getSavingsChildren) {
+        const children = getSavingsChildren(item.id)
+        // Фильтруем дочерние элементы, если есть фильтр
+        const filteredChildren = filterText.trim()
+          ? children.filter((child) =>
+              child.name.toLowerCase().includes(filterText.toLowerCase().trim())
+            )
+          : children
+        flatList.push(...filteredChildren)
+      }
+    })
+
+    return flatList
+  }, [savings, filterText, sortType, sortDirection, totalIncome, collapsedGroups, getSavingsChildren, calculateGroupTotals])
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -138,12 +264,19 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
     if (draggedIndex !== null && draggedIndex !== dropIndex) {
       const draggedItem = filteredAndSortedSavings[draggedIndex]
       const dropItem = filteredAndSortedSavings[dropIndex]
-      const originalIndex = savings.findIndex((s) => s.id === draggedItem.id)
-      const targetIndex = savings.findIndex((s) => s.id === dropItem.id)
-      if (originalIndex !== -1 && targetIndex !== -1) {
-        onReorder(originalIndex, targetIndex)
-        // Сбрасываем сортировку после перестановки, чтобы показать новый порядок
-        setSortType('none')
+      
+      // Если перетаскиваем на группу, перемещаем внутрь группы
+      if (dropItem.isGroup && !draggedItem.isGroup && onMoveToGroup) {
+        onMoveToGroup(draggedItem.id, dropItem.id)
+      } else {
+        // Обычная перестановка
+        const originalIndex = savings.findIndex((s) => s.id === draggedItem.id)
+        const targetIndex = savings.findIndex((s) => s.id === dropItem.id)
+        if (originalIndex !== -1 && targetIndex !== -1) {
+          onReorder(originalIndex, targetIndex)
+          // Сбрасываем сортировку после перестановки, чтобы показать новый порядок
+          setSortType('none')
+        }
       }
     }
     setDraggedIndex(null)
@@ -199,8 +332,23 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
                 className="category-name-input"
               />
               <button onClick={handleAddCategory} className="add-category-btn">
-                + Добавить
+                + Копилка
               </button>
+              {onAddGroup && (
+                <>
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAddGroup()}
+                    placeholder="Новая группа"
+                    className="category-name-input"
+                  />
+                  <button onClick={handleAddGroup} className="add-group-btn">
+                    + Группа
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -254,81 +402,258 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
             <div className="savings-cell actions"></div>
           </div>
 
-          {filteredAndSortedSavings.map((item, index) => (
-            <div
-              key={item.id}
-              className={`savings-row ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
-              draggable={true}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              onDrop={(e) => handleDrop(e, index)}
-            >
-              <div className="savings-cell name">
-                {editingId === item.id ? (
-                  <input
-                    type="text"
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') handleSaveEdit(item.id)
-                      if (e.key === 'Escape') setEditingId(null)
-                    }}
-                    onBlur={() => handleSaveEdit(item.id)}
-                    className="savings-name-edit"
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    onDoubleClick={() => handleStartEdit(item.id, item.name)}
-                    title="Двойной клик для редактирования"
-                    className="savings-name-text"
-                  >
+          {filteredAndSortedSavings.map((item, index) => {
+            const isGroup = item.isGroup === true
+            const isChild = item.parentId !== undefined
+            const isGroupCollapsed = isGroup && collapsedGroups.has(item.id)
+            const groupTotals = isGroup && calculateGroupTotals ? calculateGroupTotals(item.id) : null
+            const displayAmount = isGroup && groupTotals ? Math.round(groupTotals.totalAmount) : Math.round(item.amount)
+            const displayAmountUsd = isGroup && groupTotals ? groupTotals.totalAmountUsd : item.amountUsd
+            
+            return (
+              <React.Fragment key={item.id}>
+              <div
+                className={`savings-row ${isGroup ? 'group' : ''} ${isChild ? 'child' : ''} ${draggedIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''} ${item.isGroup && dragOverIndex === index ? 'drag-over-group' : ''}`}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => handleDrop(e, index)}
+              >
+                <div className="savings-cell name">
+                  {isGroup && (
+                    <button
+                      className="group-toggle"
+                      onClick={() => toggleGroupCollapse(item.id)}
+                      title={isGroupCollapsed ? 'Развернуть' : 'Свернуть'}
+                    >
+                      {isGroupCollapsed ? '▶' : '▼'}
+                    </button>
+                  )}
+                  {editingId === item.id ? (
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(item.id)
+                        if (e.key === 'Escape') setEditingId(null)
+                      }}
+                      onBlur={() => handleSaveEdit(item.id)}
+                      className="savings-name-edit"
+                      autoFocus
+                    />
+                  ) : (
                     <span
-                      className="category-icon"
+                      onDoubleClick={() => handleStartEdit(item.id, item.name)}
+                      title="Двойной клик для редактирования"
+                      className="savings-name-text"
+                    >
+                      <span
+                        className="category-icon"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setIconPickerId(item.id)
+                        }}
+                        title="Изменить иконку"
+                      >
+                        {item.icon || getCategoryIcon(item.name)}
+                      </span>
+                      {item.name}
+                      {isGroup && <span className="group-badge">группа</span>}
+                    </span>
+                  )}
+                </div>
+                <div className="savings-cell amount" data-label="Сумма (Br):">
+                  {isGroup ? (
+                    <span className="group-total">{displayAmount.toLocaleString('ru-RU')} Br</span>
+                  ) : (
+                    <input
+                      type="number"
+                      step="1"
+                      value={displayAmount}
+                      onChange={(e) => onSavingsChange(item.id, Math.round(Number(e.target.value) || 0), true)}
+                      className="savings-input"
+                    />
+                  )}
+                </div>
+                <div className="savings-cell amount-usd" data-label="В $:">
+                  {displayAmountUsd.toFixed(2)} $
+                </div>
+                <div className="savings-cell percentage" data-label="%:">
+                  {displayAmount > 0 && totalIncome > 0
+                    ? `${((displayAmount / totalIncome) * 100).toFixed(1)}%`
+                    : '-'}
+                </div>
+                <div className="savings-cell actions">
+                  <span className="drag-handle" title="Перетащите для изменения порядка">
+                    ⋮⋮
+                  </span>
+                  {isGroup && (
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        setIconPickerId(item.id)
+                        setAddingToGroupId(addingToGroupId === item.id ? null : item.id)
+                        if (addingToGroupId !== item.id) {
+                          setNewChildName('')
+                        }
                       }}
-                      title="Изменить иконку"
+                      className="add-to-group-btn"
+                      title="Добавить копилку в группу"
                     >
-                      {item.icon || getCategoryIcon(item.name)}
-                    </span>
-                    {item.name}
-                  </span>
-                )}
+                      +
+                    </button>
+                  )}
+                  {isChild && onMoveToGroup && (
+                    <button
+                      onClick={() => onMoveToGroup(item.id, null)}
+                      className="move-out-btn"
+                      title="Переместить из группы"
+                    >
+                      ↑
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setContextMenuId(contextMenuId === item.id ? null : item.id)
+                    }}
+                    className="context-menu-btn"
+                    title="Действия"
+                  >
+                    ⋯
+                  </button>
+                  {contextMenuId === item.id && (
+                    <div className="context-menu" onClick={(e) => e.stopPropagation()}>
+                      {!isGroup && onConvertToGroup && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onConvertToGroup(item.id)
+                            setContextMenuId(null)
+                          }}
+                          className="context-menu-item"
+                        >
+                          Преобразовать в группу
+                        </button>
+                      )}
+                      {isGroup && onConvertToSavings && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onConvertToSavings(item.id)
+                            setContextMenuId(null)
+                          }}
+                          className="context-menu-item"
+                        >
+                          Разгруппировать
+                        </button>
+                      )}
+                      {!isGroup && isChild && onMoveToGroup && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onMoveToGroup(item.id, null)
+                            setContextMenuId(null)
+                          }}
+                          className="context-menu-item"
+                        >
+                          ↑ Переместить на верхний уровень
+                        </button>
+                      )}
+                      {!isGroup && !isChild && onMoveToGroup && savings.filter(s => s.isGroup && !s.parentId).length > 0 && (
+                        <>
+                          <div className="context-menu-divider"></div>
+                          <div className="context-menu-label">Переместить в группу:</div>
+                          {savings.filter(s => s.isGroup && !s.parentId).map(group => (
+                            <button
+                              key={group.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onMoveToGroup(item.id, group.id)
+                                setContextMenuId(null)
+                              }}
+                              className="context-menu-item indent"
+                            >
+                              📁 {group.name}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {!isGroup && isChild && onMoveToGroup && (
+                        <>
+                          <div className="context-menu-divider"></div>
+                          <div className="context-menu-label">Переместить в другую группу:</div>
+                          {savings.filter(s => s.isGroup && !s.parentId && s.id !== item.parentId).map(group => (
+                            <button
+                              key={group.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onMoveToGroup(item.id, group.id)
+                                setContextMenuId(null)
+                              }}
+                              className="context-menu-item indent"
+                            >
+                              📁 {group.name}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      <div className="context-menu-divider"></div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onRemoveCategory(item.id)
+                          setContextMenuId(null)
+                        }}
+                        className="context-menu-item danger"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="savings-cell amount" data-label="Сумма (Br):">
-                <input
-                  type="number"
-                  step="1"
-                  value={Math.round(item.amount)}
-                  onChange={(e) => onSavingsChange(item.id, Math.round(Number(e.target.value) || 0), true)}
-                  className="savings-input"
-                />
-              </div>
-              <div className="savings-cell amount-usd" data-label="В $:">
-                {item.amountUsd.toFixed(2)} $
-              </div>
-              <div className="savings-cell percentage" data-label="%:">
-                {item.amount > 0 && totalIncome > 0
-                  ? `${((Math.round(item.amount) / totalIncome) * 100).toFixed(1)}%`
-                  : '-'}
-              </div>
-              <div className="savings-cell actions">
-                <span className="drag-handle" title="Перетащите для изменения порядка">
-                  ⋮⋮
-                </span>
-                <button
-                  onClick={() => onRemoveCategory(item.id)}
-                  className="remove-savings-btn"
-                  title="Удалить"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
+              
+              {/* Форма добавления дочерней копилки */}
+              {isGroup && addingToGroupId === item.id && (
+                <div className="add-child-form">
+                  <div className="add-child-form-content">
+                    <span className="add-child-icon">📌</span>
+                    <input
+                      type="text"
+                      value={newChildName}
+                      onChange={(e) => setNewChildName(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') handleAddChildToGroup(item.id)
+                        if (e.key === 'Escape') setAddingToGroupId(null)
+                      }}
+                      placeholder={`Новая копилка в "${item.name}"`}
+                      className="add-child-input"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleAddChildToGroup(item.id)}
+                      className="add-child-submit"
+                      disabled={!newChildName.trim()}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAddingToGroupId(null)
+                        setNewChildName('')
+                      }}
+                      className="add-child-cancel"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+              </React.Fragment>
+            )
+          })}
 
           <div className="savings-row total">
             <div className="savings-cell name">Итог</div>

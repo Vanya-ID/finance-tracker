@@ -6,6 +6,8 @@ export interface SavingsItem {
   percentage?: number
   isCustom: boolean
   icon?: string
+  isGroup?: boolean  // Флаг, определяющий, является ли элемент группой
+  parentId?: string  // ID родительской группы (для дочерних копилок)
 }
 
 export interface IncomeItem {

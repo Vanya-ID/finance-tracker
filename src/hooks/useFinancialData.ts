@@ -207,6 +207,12 @@ export const useFinancialData = () => {
 
   const updateSavingsItem = (id: string, amount: number, isCustom: boolean = true) => {
     setData((prev) => {
+      const item = prev.savings.find((s) => s.id === id)
+      // Не позволяем редактировать суммы у групп
+      if (item?.isGroup) {
+        return prev
+      }
+      
       const newSavings = prev.savings.map((item) =>
         item.id === id
           ? {
@@ -256,7 +262,7 @@ export const useFinancialData = () => {
     })
   }
 
-  const addSavingsCategory = (name: string) => {
+  const addSavingsCategory = (name: string, parentId?: string) => {
     setData((prev) => {
       const newItem: SavingsItem = {
         id: Date.now().toString(),
@@ -265,6 +271,8 @@ export const useFinancialData = () => {
         amountUsd: 0,
         isCustom: true,
         icon: getCategoryIcon(name),
+        isGroup: false,
+        parentId: parentId || undefined,
       }
       const newData = {
         ...prev,
@@ -440,6 +448,101 @@ export const useFinancialData = () => {
     await saveFinancialDataImmediate(data)
   }
 
+  // Вспомогательные функции для работы с группами
+  const getSavingsChildren = (parentId: string) => {
+    return data.savings.filter((item) => item.parentId === parentId)
+  }
+
+  const calculateGroupTotals = (groupId: string) => {
+    const children = getSavingsChildren(groupId)
+    const totalAmount = children.reduce((sum, child) => sum + child.amount, 0)
+    const totalAmountUsd = children.reduce((sum, child) => sum + child.amountUsd, 0)
+    return { totalAmount, totalAmountUsd }
+  }
+
+  // Создание новой группы
+  const addSavingsGroup = (name: string) => {
+    setData((prev) => {
+      const newGroup: SavingsItem = {
+        id: Date.now().toString(),
+        name,
+        amount: 0,
+        amountUsd: 0,
+        isCustom: true,
+        icon: getCategoryIcon(name),
+        isGroup: true,
+        parentId: undefined,
+      }
+      const newData = {
+        ...prev,
+        savings: [...prev.savings, newGroup],
+      }
+      // Немедленное сохранение при добавлении
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  // Конвертация обычной копилки в группу
+  const convertSavingsToGroup = (id: string) => {
+    setData((prev) => {
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) =>
+          item.id === id
+            ? { ...item, isGroup: true, amount: 0, amountUsd: 0 }
+            : item
+        ),
+      }
+      // Немедленное сохранение при конвертации
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  // Конвертация группы обратно в обычную копилку
+  const convertGroupToSavings = (id: string) => {
+    setData((prev) => {
+      // Перемещаем всех детей группы на верхний уровень
+      const newSavings = prev.savings.map((item) => {
+        if (item.id === id) {
+          return { ...item, isGroup: false }
+        }
+        if (item.parentId === id) {
+          return { ...item, parentId: undefined }
+        }
+        return item
+      })
+      const newData = { ...prev, savings: newSavings }
+      // Немедленное сохранение при конвертации
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  // Перемещение копилки в группу или из группы
+  const moveSavingsToGroup = (savingsId: string, groupId: string | null) => {
+    setData((prev) => {
+      const savingsItem = prev.savings.find((s) => s.id === savingsId)
+      // Не позволяем перемещать группу в группу (только один уровень вложенности)
+      if (savingsItem?.isGroup && groupId !== null) {
+        return prev
+      }
+      
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) =>
+          item.id === savingsId
+            ? { ...item, parentId: groupId || undefined }
+            : item
+        ),
+      }
+      // Немедленное сохранение при перемещении
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
   return {
     data,
     distributionRules,
@@ -478,6 +581,13 @@ export const useFinancialData = () => {
     setSelectedPresetType,
     customPercentages,
     setCustomPercentages,
+    // Функции для работы с группами
+    getSavingsChildren,
+    calculateGroupTotals,
+    addSavingsGroup,
+    convertSavingsToGroup,
+    convertGroupToSavings,
+    moveSavingsToGroup,
   }
 }
 

@@ -106,17 +106,20 @@ export const useSavingsStats = () => {
       })
     })
     
-    // Инициализируем статистику для всех текущих копилок
+    // Инициализируем статистику для всех текущих копилок (только обычные, не группы)
     data.savings.forEach((saving) => {
-      statsMap.set(saving.id, {
-        savingsId: saving.id,
-        savingsName: saving.name,
-        icon: saving.icon,
-        totalDeposited: 0,
-        totalWithdrawn: 0,
-        currentBalance: 0,
-      })
-      // Обновляем кэш названий
+      // Группы не имеют собственной статистики, только их дочерние элементы
+      if (!saving.isGroup) {
+        statsMap.set(saving.id, {
+          savingsId: saving.id,
+          savingsName: saving.name,
+          icon: saving.icon,
+          totalDeposited: 0,
+          totalWithdrawn: 0,
+          currentBalance: 0,
+        })
+      }
+      // Обновляем кэш названий для всех (включая группы, на случай если они были удалены)
       savingsNameCache.set(saving.id, saving.name)
     })
 

@@ -58,6 +58,13 @@ export const PlanPage: React.FC = () => {
     setSelectedPresetType,
     customPercentages,
     setCustomPercentages,
+    // Функции для работы с группами
+    getSavingsChildren,
+    calculateGroupTotals,
+    addSavingsGroup,
+    convertSavingsToGroup,
+    convertGroupToSavings,
+    moveSavingsToGroup,
   } = useFinancialData()
 
   const handleSave = async () => {
@@ -133,6 +140,12 @@ export const PlanPage: React.FC = () => {
         onReorder={reorderSavings}
         isCollapsed={collapsedSections.savings}
         onToggleCollapse={() => toggleSection('savings')}
+        onAddGroup={addSavingsGroup}
+        onConvertToGroup={convertSavingsToGroup}
+        onConvertToSavings={convertGroupToSavings}
+        onMoveToGroup={moveSavingsToGroup}
+        getSavingsChildren={getSavingsChildren}
+        calculateGroupTotals={calculateGroupTotals}
       />
 
       <ExpensesSection
