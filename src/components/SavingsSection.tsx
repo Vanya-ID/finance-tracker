@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { SavingsItem } from '../types'
 import { IconPicker } from './IconPicker'
+import { DeleteGroupModal } from './DeleteGroupModal'
 import { getCategoryIcon } from '../utils/iconUtils'
 import './SavingsSection.css'
 
@@ -13,7 +14,7 @@ interface SavingsSectionProps {
   onSavingsChange: (id: string, amount: number, isCustom: boolean) => void
   onExchangeRateChange: (rate: number) => void
   onAddCategory: (name: string, parentId?: string) => void
-  onRemoveCategory: (id: string) => void
+  onRemoveCategory: (id: string, deleteChildren?: boolean) => void
   onCategoryNameChange: (id: string, name: string) => void
   onSavingsIconChange: (id: string, icon: string) => void
   onReorder: (fromIndex: number, toIndex: number) => void
@@ -67,6 +68,7 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [contextMenuId, setContextMenuId] = useState<string | null>(null)
+  const [deleteGroupModal, setDeleteGroupModal] = useState<{ id: string; name: string; childrenCount: number } | null>(null)
 
   // Закрываем контекстное меню при клике вне его
   React.useEffect(() => {
@@ -176,8 +178,15 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
   }
 
   const filteredAndSortedSavings = useMemo(() => {
-    // Получаем только элементы верхнего уровня (без родителя)
-    let topLevelItems = savings.filter((item) => !item.parentId)
+    // Получаем элементы верхнего уровня (без родителя) и осиротевшие копилки (у которых родитель не существует)
+    const existingGroupIds = new Set(savings.filter((item) => item.isGroup).map((item) => item.id))
+    let topLevelItems = savings.filter((item) => {
+      // Показываем элементы без родителя
+      if (!item.parentId) return true
+      // Показываем элементы с parentId, у которых родительской группы не существует (осиротевшие)
+      if (item.parentId && !existingGroupIds.has(item.parentId)) return true
+      return false
+    })
 
     // Фильтрация по названию
     if (filterText.trim()) {
@@ -227,7 +236,8 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
     topLevelItems.forEach((item) => {
       flatList.push(item)
       // Если это группа и она не свернута, добавляем дочерние элементы
-      if (item.isGroup && !collapsedGroups.has(item.id) && getSavingsChildren) {
+      // Также проверяем, что группа действительно существует в списке
+      if (item.isGroup && !collapsedGroups.has(item.id) && getSavingsChildren && existingGroupIds.has(item.id)) {
         const children = getSavingsChildren(item.id)
         // Фильтруем дочерние элементы, если есть фильтр
         const filteredChildren = filterText.trim()
@@ -600,16 +610,35 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
                         </>
                       )}
                       <div className="context-menu-divider"></div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onRemoveCategory(item.id)
-                          setContextMenuId(null)
-                        }}
-                        className="context-menu-item danger"
-                      >
-                        Удалить
-                      </button>
+                      {!isGroup && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRemoveCategory(item.id)
+                            setContextMenuId(null)
+                          }}
+                          className="context-menu-item danger"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                      {isGroup && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const children = getSavingsChildren ? getSavingsChildren(item.id) : []
+                            setDeleteGroupModal({
+                              id: item.id,
+                              name: item.name,
+                              childrenCount: children.length,
+                            })
+                            setContextMenuId(null)
+                          }}
+                          className="context-menu-item danger"
+                        >
+                          Удалить группу
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -672,6 +701,21 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
             setIconPickerId(null)
           }}
           onClose={() => setIconPickerId(null)}
+        />
+      )}
+      {deleteGroupModal && (
+        <DeleteGroupModal
+          groupName={deleteGroupModal.name}
+          childrenCount={deleteGroupModal.childrenCount}
+          onDeleteWithChildren={() => {
+            onRemoveCategory(deleteGroupModal.id, true)
+            setDeleteGroupModal(null)
+          }}
+          onDeleteGroupOnly={() => {
+            onRemoveCategory(deleteGroupModal.id, false)
+            setDeleteGroupModal(null)
+          }}
+          onCancel={() => setDeleteGroupModal(null)}
         />
       )}
     </div>

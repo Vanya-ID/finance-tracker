@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { FinancialData, MonthlyReport, UserProfile, SavingsTransaction, DistributionRule } from '../types'
+import { FinancialData, MonthlyReport, UserProfile, SavingsTransaction, DistributionRule, Transaction } from '../types'
 
 type Settings = {
   selectedPresetType?: '50-30-20' | '50-40-10' | 'custom'
@@ -317,6 +317,136 @@ export const loadSavingsWithdrawals = async (userId: string): Promise<SavingsTra
     return data?.withdrawals || []
   } catch (error) {
     console.error('Ошибка загрузки вычетов из копилок:', error)
+    throw error
+  }
+}
+
+// Транзакции (доходы/расходы)
+export const createTransaction = async (userId: string, transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction> => {
+  try {
+    const createdAt = Date.now()
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        amount: transaction.amount,
+        category_id: transaction.categoryId,
+        category_name: transaction.categoryName,
+        type: transaction.type,
+        date: transaction.date,
+        created_at: createdAt,
+        description: transaction.description || null,
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      console.error('Ошибка создания транзакции:', error)
+      throw error
+    }
+
+    return {
+      id: data.id,
+      userId,
+      amount: Number(data.amount),
+      categoryId: data.category_id,
+      categoryName: data.category_name,
+      type: data.type,
+      date: data.date,
+      createdAt: typeof data.created_at === 'number' ? data.created_at : createdAt,
+      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : undefined,
+      description: data.description ?? undefined,
+    }
+  } catch (error) {
+    console.error('Ошибка создания транзакции:', error)
+    throw error
+  }
+}
+
+export const loadTransactions = async (userId: string, fromDate?: number, toDate?: number): Promise<Transaction[]> => {
+  try {
+    let query = supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+
+    if (fromDate !== undefined) {
+      query = query.gte('date', fromDate)
+    }
+    if (toDate !== undefined) {
+      query = query.lte('date', toDate)
+    }
+
+    const { data, error } = await query.order('date', { ascending: false }).order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Ошибка загрузки транзакций:', error)
+      throw error
+    }
+
+    if (!data) {
+      return []
+    }
+
+    return data.map((row: any) => ({
+      id: row.id,
+      userId,
+      amount: Number(row.amount),
+      categoryId: row.category_id,
+      categoryName: row.category_name,
+      type: row.type,
+      date: typeof row.date === 'number' ? row.date : new Date(row.date).getTime(),
+      createdAt: typeof row.created_at === 'number' ? row.created_at : new Date(row.created_at).getTime(),
+      updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
+      description: row.description ?? undefined,
+    }))
+  } catch (error) {
+    console.error('Ошибка загрузки транзакций:', error)
+    throw error
+  }
+}
+
+export const updateTransaction = async (userId: string, transaction: Transaction): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        amount: transaction.amount,
+        category_id: transaction.categoryId,
+        category_name: transaction.categoryName,
+        type: transaction.type,
+        date: transaction.date,
+        description: transaction.description || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', transaction.id)
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Ошибка обновления транзакции:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Ошибка обновления транзакции:', error)
+    throw error
+  }
+}
+
+export const deleteTransaction = async (userId: string, transactionId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Ошибка удаления транзакции:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Ошибка удаления транзакции:', error)
     throw error
   }
 }

@@ -1,0 +1,130 @@
+.delete-group-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.delete-group-modal {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.delete-group-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.delete-group-modal-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.delete-group-modal-content {
+  margin-bottom: 24px;
+}
+
+.delete-group-modal-content p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.delete-group-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.delete-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-btn.danger {
+  background: var(--btn-danger);
+  color: white;
+}
+
+.delete-btn.danger:hover {
+  background: var(--btn-danger-hover);
+}
+
+.delete-btn.warning {
+  background: #ed8936;
+  color: white;
+}
+
+.delete-btn.warning:hover {
+  background: #dd6b20;
+}
+
+.cancel-btn {
+  padding: 12px 24px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  border-color: var(--border-color-focus);
+  background: var(--bg-card-hover);
+}
+
+@media (max-width: 768px) {
+  .delete-group-modal {
+    padding: 20px;
+    max-width: 100%;
+  }
+
+  .delete-group-modal-header h2 {
+    font-size: 20px;
+  }
+}
+

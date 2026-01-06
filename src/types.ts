@@ -85,3 +85,18 @@ export interface SavingsStats {
   currentBalance: number  // Текущий баланс (deposited - withdrawn)
 }
 
+export type TransactionType = 'income' | 'expense'
+
+export interface Transaction {
+  id: string
+  userId: string
+  amount: number
+  categoryId: string
+  categoryName: string
+  type: TransactionType
+  date: number  // Timestamp в миллисекундах
+  createdAt: number
+  updatedAt?: number
+  description?: string
+}
+

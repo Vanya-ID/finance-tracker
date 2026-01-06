@@ -1,0 +1,128 @@
+.transaction-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.transaction-item:hover {
+  border-color: var(--border-color);
+  background: var(--bg-card-hover);
+  transform: translateX(4px);
+}
+
+.transaction-item.income {
+  border-left: 4px solid #48bb78;
+}
+
+.transaction-item.expense {
+  border-left: 4px solid #f56565;
+}
+
+.transaction-icon {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.transaction-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.transaction-category {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.transaction-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transaction-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.transaction-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.transaction-item.income .transaction-amount {
+  color: #48bb78;
+}
+
+.transaction-item.expense .transaction-amount {
+  color: #f56565;
+}
+
+.transaction-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.action-btn:hover {
+  opacity: 1;
+  background: var(--bg-card-hover);
+}
+
+.edit-btn:hover {
+  background: rgba(66, 153, 225, 0.1);
+}
+
+.delete-btn:hover {
+  background: rgba(245, 101, 101, 0.1);
+}
+
+@media (max-width: 768px) {
+  .transaction-item {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .transaction-icon {
+    font-size: 28px;
+  }
+
+  .transaction-category {
+    font-size: 15px;
+  }
+
+  .transaction-amount {
+    font-size: 16px;
+  }
+
+  .transaction-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+

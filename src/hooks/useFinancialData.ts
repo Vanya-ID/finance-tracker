@@ -49,7 +49,33 @@ export const useFinancialData = () => {
       try {
         const firebaseData = await loadFinancialDataFromDB()
         if (firebaseData) {
-          setData(firebaseData)
+          // Очищаем осиротевшие копилки (у которых parentId указывает на несуществующую группу)
+          const existingGroupIds = new Set(
+            firebaseData.savings
+              .filter((item) => item.isGroup)
+              .map((item) => item.id)
+          )
+          
+          const hasOrphanedItems = firebaseData.savings.some(
+            (item) => item.parentId && !existingGroupIds.has(item.parentId)
+          )
+          
+          if (hasOrphanedItems) {
+            const cleanedSavings = firebaseData.savings.map((item) => {
+              // Если у копилки есть parentId, но родительской группы не существует, убираем parentId
+              if (item.parentId && !existingGroupIds.has(item.parentId)) {
+                return { ...item, parentId: undefined }
+              }
+              return item
+            })
+            
+            const cleanedData = { ...firebaseData, savings: cleanedSavings }
+            setData(cleanedData)
+            // Сохраняем очищенные данные
+            saveFinancialDataImmediate(cleanedData)
+          } else {
+            setData(firebaseData)
+          }
         } else {
           setData(defaultFinancialData)
         }
@@ -61,7 +87,7 @@ export const useFinancialData = () => {
       }
     }
     loadData()
-  }, [loadFinancialDataFromDB])
+  }, [loadFinancialDataFromDB, saveFinancialDataImmediate])
 
   // Загрузка настроек из Firebase
   useEffect(() => {
@@ -284,23 +310,67 @@ export const useFinancialData = () => {
     })
   }
 
-  const removeSavingsCategory = (id: string) => {
+  const removeSavingsCategory = (id: string, deleteChildren: boolean = false) => {
     setData((prev) => {
+      const itemToDelete = prev.savings.find((item) => item.id === id)
+      const isGroup = itemToDelete?.isGroup === true
+      
+      // Рекурсивная функция для поиска всех дочерних элементов
+      const findAllChildren = (parentId: string, savingsList: SavingsItem[]): string[] => {
+        const directChildren = savingsList
+          .filter((item) => item.parentId === parentId)
+          .map((item) => item.id)
+        const nestedChildren = directChildren.flatMap((childId) => {
+          const child = savingsList.find((item) => item.id === childId)
+          return child?.isGroup ? findAllChildren(childId, savingsList) : []
+        })
+        return [...directChildren, ...nestedChildren]
+      }
+      
+      let newSavings = [...prev.savings]
+      let idsToRemove = [id]
+      
+      if (isGroup) {
+        if (deleteChildren) {
+          // Удаляем группу и все её дочерние элементы
+          const allChildrenIds = new Set(findAllChildren(id, prev.savings))
+          allChildrenIds.add(id)
+          idsToRemove = Array.from(allChildrenIds)
+          newSavings = prev.savings.filter((item) => !allChildrenIds.has(item.id))
+        } else {
+          // Удаляем только группу, дочерние элементы выносим наверх (убираем parentId)
+          newSavings = prev.savings
+            .filter((item) => item.id !== id)
+            .map((item) => {
+              if (item.parentId === id) {
+                return { ...item, parentId: undefined }
+              }
+              return item
+            })
+        }
+      } else {
+        // Удаляем обычную копилку
+        newSavings = prev.savings.filter((item) => item.id !== id)
+      }
+      
+      // Удалить правила, связанные с удаляемыми копилками
+      setDistributionRules((prevRules) =>
+        prevRules
+          .map((rule) => ({
+            ...rule,
+            savingsItemIds: rule.savingsItemIds.filter((itemId) => !idsToRemove.includes(itemId)),
+          }))
+          .filter((rule) => rule.savingsItemIds.length > 0)
+      )
+      
       const newData = {
         ...prev,
-        savings: prev.savings.filter((item) => item.id !== id),
+        savings: newSavings,
       }
       // Немедленное сохранение при удалении
       saveFinancialDataImmediate(newData)
       return newData
     })
-    // Удалить правила, связанные с этой копилкой
-    setDistributionRules((prevRules) =>
-      prevRules.map((rule) => ({
-        ...rule,
-        savingsItemIds: rule.savingsItemIds.filter((itemId) => itemId !== id),
-      })).filter((rule) => rule.savingsItemIds.length > 0)
-    )
   }
 
   const updateSavingsCategoryName = (id: string, name: string) => {

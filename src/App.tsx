@@ -7,6 +7,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { LoginPage } from './pages/LoginPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SavingsStatsPage } from './pages/SavingsStatsPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 import './App.css'
 
 const App: React.FC = () => {
@@ -20,6 +21,7 @@ const App: React.FC = () => {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="plan" replace />} />
           <Route path="plan" element={<ProtectedRoute><PlanPage /></ProtectedRoute>} />
+          <Route path="transactions" element={<ProtectedRoute><TransactionsPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
           <Route path="savings-stats" element={<ProtectedRoute><SavingsStatsPage /></ProtectedRoute>} />

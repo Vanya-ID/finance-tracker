@@ -11,8 +11,12 @@ import {
   loadAllReports as loadAllReportsFromDB,
   saveSavingsWithdrawals as saveSavingsWithdrawalsToDB,
   loadSavingsWithdrawals as loadSavingsWithdrawalsFromDB,
+  createTransaction as createTransactionInDB,
+  loadTransactions as loadTransactionsFromDB,
+  updateTransaction as updateTransactionInDB,
+  deleteTransaction as deleteTransactionFromDB,
 } from '../services/supabaseDataService'
-import { FinancialData, UserProfile, MonthlyReport, SavingsTransaction, DistributionRule } from '../types'
+import { FinancialData, UserProfile, MonthlyReport, SavingsTransaction, DistributionRule, Transaction } from '../types'
 
 type Settings = {
   selectedPresetType?: '50-30-20' | '50-40-10' | 'custom'
@@ -280,6 +284,61 @@ export const useDatabase = () => {
     }
   }, [isAuthenticated, user])
 
+  // Транзакции
+  const createTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction | null> => {
+    if (!isAuthenticated || !user) {
+      return null
+    }
+
+    try {
+      const result = await createTransactionInDB(user.id, transaction)
+      return result
+    } catch (error) {
+      console.error('Ошибка создания транзакции:', error)
+      throw error
+    }
+  }, [isAuthenticated, user])
+
+  const loadTransactions = useCallback(async (fromDate?: number, toDate?: number): Promise<Transaction[]> => {
+    if (!isAuthenticated || !user) {
+      return []
+    }
+
+    try {
+      const result = await loadTransactionsFromDB(user.id, fromDate, toDate)
+      return result
+    } catch (error) {
+      console.error('Ошибка загрузки транзакций:', error)
+      throw error
+    }
+  }, [isAuthenticated, user])
+
+  const updateTransaction = useCallback(async (transaction: Transaction): Promise<void> => {
+    if (!isAuthenticated || !user) {
+      return
+    }
+
+    try {
+      await updateTransactionInDB(user.id, transaction)
+    } catch (error) {
+      console.error('Ошибка обновления транзакции:', error)
+      throw error
+    }
+  }, [isAuthenticated, user])
+
+  const deleteTransaction = useCallback(async (transactionId: string): Promise<void> => {
+    if (!isAuthenticated || !user) {
+      return
+    }
+
+    try {
+      await deleteTransactionFromDB(user.id, transactionId)
+    } catch (error) {
+      console.error('Ошибка удаления транзакции:', error)
+      throw error
+    }
+  }, [isAuthenticated, user])
+
   // Очистка таймеров при размонтировании
   useEffect(() => {
     return () => {
@@ -309,6 +368,10 @@ export const useDatabase = () => {
     loadAllReports,
     saveSavingsWithdrawals,
     loadSavingsWithdrawals,
+    createTransaction,
+    loadTransactions,
+    updateTransaction,
+    deleteTransaction,
   }
 }
 
