@@ -86,11 +86,6 @@ export const TransactionsPage: React.FC = () => {
     setShowForm(true)
   }
 
-  // Общая сумма плановых расходов
-  const totalPlannedExpenses = useMemo(() => {
-    return data.expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0)
-  }, [data.expenses])
-
   // Обработка клика на карточку категории
   const handleCategoryClick = (categoryId: string) => {
     setFormDefaults({
@@ -239,7 +234,6 @@ export const TransactionsPage: React.FC = () => {
       <PlanExpensesCard
         expenses={data.expenses}
         totalActualExpenses={totalActualExpenses}
-        onDrop={handleCategoryDrop}
       />
 
       {tableNotFound ? (

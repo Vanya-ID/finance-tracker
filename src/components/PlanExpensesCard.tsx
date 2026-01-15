@@ -5,13 +5,11 @@ import './PlanExpensesCard.css'
 interface PlanExpensesCardProps {
   expenses: ExpenseItem[]
   totalActualExpenses: number  // Общая сумма всех фактических расходов
-  onDrop: (categoryId: string, amount: number) => void
 }
 
 export const PlanExpensesCard: React.FC<PlanExpensesCardProps> = ({
   expenses,
   totalActualExpenses,
-  onDrop,
 }) => {
   const [draggedAmount, setDraggedAmount] = useState<number>(0)
   const [isDragging, setIsDragging] = useState(false)

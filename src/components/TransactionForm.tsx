@@ -8,7 +8,7 @@ interface TransactionFormProps {
   defaultCategoryId?: string
   defaultAmount?: number
   defaultType?: 'income' | 'expense'
-  onSave: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void
+  onSave: (transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>) => void
   onCancel: () => void
 }
 
@@ -78,7 +78,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     })
   }
 
-  const filteredCategories = categories.filter(cat => {
+  const filteredCategories = categories.filter(() => {
     // Для доходов показываем все категории, для расходов - только категории расходов
     // В будущем можно добавить поле type к категориям
     return true
