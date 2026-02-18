@@ -19,7 +19,6 @@ export const TransactionsPage: React.FC = () => {
     updateTransaction,
     deleteTransaction,
     getCategoryTotal,
-    tableNotFound,
   } = useTransactions()
 
   const [showForm, setShowForm] = useState(false)
@@ -236,14 +235,7 @@ export const TransactionsPage: React.FC = () => {
         totalActualExpenses={totalActualExpenses}
       />
 
-      {tableNotFound ? (
-        <div className="empty-state error-state">
-          <h3>⚠️ Таблица транзакций не найдена</h3>
-          <p>Для работы с транзакциями необходимо создать таблицу в базе данных Supabase.</p>
-          <p>Выполните SQL скрипт из файла <code>supabase_schema.sql</code> в SQL Editor вашего проекта Supabase.</p>
-          <p>Нужно выполнить только часть скрипта, связанную с таблицей <code>transactions</code>.</p>
-        </div>
-      ) : expenseCategories.length === 0 ? (
+      {expenseCategories.length === 0 ? (
         <div className="empty-state">
           <p>Создайте категории расходов в разделе "План" для начала работы с транзакциями</p>
         </div>

@@ -1,4 +1,3 @@
-import { supabase } from './supabase'
 import { FinancialData, MonthlyReport, UserProfile, SavingsTransaction, DistributionRule, Transaction } from '../types'
 
 type Settings = {
@@ -10,444 +9,179 @@ type Settings = {
   selectedSavingsForStats?: string[]
 }
 
-// Функция getUserId не нужна, так как userId передается как параметр
+const STORAGE_KEYS = {
+  financialData: 'finance-tracker-financial-data',
+  profile: 'finance-tracker-profile',
+  settings: 'finance-tracker-settings',
+  reports: 'finance-tracker-reports',
+  savingsWithdrawals: 'finance-tracker-savings-withdrawals',
+  transactions: 'finance-tracker-transactions',
+} as const
 
-// Сохранение финансовых данных (план)
-export const saveFinancialData = async (userId: string, data: FinancialData): Promise<void> => {
+const getStorage = (): Storage | null => {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return window.localStorage
+}
+
+const readStorage = <T>(key: string, fallback: T): T => {
+  const storage = getStorage()
+  if (!storage) {
+    return fallback
+  }
+
   try {
-    const { error } = await supabase
-      .from('user_financial_data')
-      .upsert({
-        user_id: userId,
-        financial_data: data,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
-
-    if (error) {
-      console.error('Ошибка сохранения финансовых данных:', error)
-      throw error
+    const raw = storage.getItem(key)
+    if (!raw) {
+      return fallback
     }
+
+    return JSON.parse(raw) as T
   } catch (error) {
-    console.error('Ошибка сохранения финансовых данных:', error)
+    console.error(`Ошибка чтения localStorage по ключу "${key}":`, error)
+    return fallback
+  }
+}
+
+const writeStorage = <T>(key: string, value: T): void => {
+  const storage = getStorage()
+  if (!storage) {
+    return
+  }
+
+  try {
+    storage.setItem(key, JSON.stringify(value))
+  } catch (error) {
+    console.error(`Ошибка записи localStorage по ключу "${key}":`, error)
     throw error
   }
 }
 
-// Загрузка финансовых данных
-export const loadFinancialData = async (userId: string): Promise<FinancialData | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('user_financial_data')
-      .select('financial_data')
-      .eq('user_id', userId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Запись не найдена
-        return null
-      }
-      console.error('Ошибка загрузки финансовых данных:', error)
-      throw error
-    }
-
-    return data?.financial_data || null
-  } catch (error) {
-    console.error('Ошибка загрузки финансовых данных:', error)
-    throw error
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
   }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-// Сохранение профиля пользователя
-export const saveProfile = async (userId: string, profile: UserProfile): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('user_profiles')
-      .upsert({
-        user_id: userId,
-        first_name: profile.firstName,
-        last_name: profile.lastName,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
-
-    if (error) {
-      console.error('Ошибка сохранения профиля:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка сохранения профиля:', error)
-    throw error
-  }
+export const saveFinancialData = async (data: FinancialData): Promise<void> => {
+  writeStorage(STORAGE_KEYS.financialData, data)
 }
 
-// Загрузка профиля пользователя
-export const loadProfile = async (userId: string): Promise<UserProfile | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('first_name, last_name')
-      .eq('user_id', userId)
-      .single()
+export const loadFinancialData = async (): Promise<FinancialData | null> => {
+  return readStorage<FinancialData | null>(STORAGE_KEYS.financialData, null)
+}
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Запись не найдена
-        return null
-      }
-      console.error('Ошибка загрузки профиля:', error)
-      throw error
+export const saveProfile = async (profile: UserProfile): Promise<void> => {
+  writeStorage(STORAGE_KEYS.profile, profile)
+}
+
+export const loadProfile = async (): Promise<UserProfile | null> => {
+  return readStorage<UserProfile | null>(STORAGE_KEYS.profile, null)
+}
+
+export const saveReport = async (report: MonthlyReport): Promise<void> => {
+  const reports = readStorage<MonthlyReport[]>(STORAGE_KEYS.reports, [])
+  const reportId = report.id || generateId()
+  const createdAt = typeof report.createdAt === 'number' ? report.createdAt : Date.now()
+  const normalizedReport: MonthlyReport = {
+    ...report,
+    id: reportId,
+    createdAt,
+  }
+
+  const existingIndex = reports.findIndex((item) => item.year === report.year && item.month === report.month)
+  if (existingIndex >= 0) {
+    reports[existingIndex] = normalizedReport
+  } else {
+    reports.push(normalizedReport)
+  }
+
+  writeStorage(STORAGE_KEYS.reports, reports)
+}
+
+export const loadAllReports = async (): Promise<MonthlyReport[]> => {
+  const reports = readStorage<MonthlyReport[]>(STORAGE_KEYS.reports, [])
+  return reports.sort((a, b) => (b.year - a.year) || (b.month - a.month))
+}
+
+export const deleteReport = async (year: number, month: number): Promise<void> => {
+  const reports = readStorage<MonthlyReport[]>(STORAGE_KEYS.reports, [])
+  const filteredReports = reports.filter((item) => item.year !== year || item.month !== month)
+  writeStorage(STORAGE_KEYS.reports, filteredReports)
+}
+
+export const saveSettings = async (settings: Settings): Promise<void> => {
+  const existingSettings = readStorage<Settings>(STORAGE_KEYS.settings, {})
+  const mergedSettings: Settings = { ...existingSettings, ...settings }
+  writeStorage(STORAGE_KEYS.settings, mergedSettings)
+}
+
+export const loadSettings = async (): Promise<Settings | null> => {
+  return readStorage<Settings | null>(STORAGE_KEYS.settings, null)
+}
+
+export const saveSavingsWithdrawals = async (withdrawals: SavingsTransaction[]): Promise<void> => {
+  writeStorage(STORAGE_KEYS.savingsWithdrawals, withdrawals)
+}
+
+export const loadSavingsWithdrawals = async (): Promise<SavingsTransaction[]> => {
+  return readStorage<SavingsTransaction[]>(STORAGE_KEYS.savingsWithdrawals, [])
+}
+
+export const createTransaction = async (transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction> => {
+  const transactions = readStorage<Transaction[]>(STORAGE_KEYS.transactions, [])
+  const now = Date.now()
+  const createdTransaction: Transaction = {
+    ...transaction,
+    id: generateId(),
+    userId: 'local',
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  writeStorage(STORAGE_KEYS.transactions, [createdTransaction, ...transactions])
+  return createdTransaction
+}
+
+export const loadTransactions = async (fromDate?: number, toDate?: number): Promise<Transaction[]> => {
+  const transactions = readStorage<Transaction[]>(STORAGE_KEYS.transactions, [])
+
+  const filteredTransactions = transactions.filter((transaction) => {
+    if (fromDate !== undefined && transaction.date < fromDate) {
+      return false
     }
+    if (toDate !== undefined && transaction.date > toDate) {
+      return false
+    }
+    return true
+  })
 
-    if (!data) {
-      return null
+  return filteredTransactions.sort((a, b) => (b.date - a.date) || (b.createdAt - a.createdAt))
+}
+
+export const updateTransaction = async (transaction: Transaction): Promise<void> => {
+  const transactions = readStorage<Transaction[]>(STORAGE_KEYS.transactions, [])
+  const updatedTransactions = transactions.map((item) => {
+    if (item.id !== transaction.id) {
+      return item
     }
 
     return {
-      firstName: data.first_name || '',
-      lastName: data.last_name || '',
+      ...transaction,
+      updatedAt: Date.now(),
     }
-  } catch (error) {
-    console.error('Ошибка загрузки профиля:', error)
-    throw error
-  }
+  })
+
+  writeStorage(STORAGE_KEYS.transactions, updatedTransactions)
 }
 
-// Сохранение отчета за месяц
-export const saveReport = async (userId: string, report: MonthlyReport): Promise<void> => {
-  try {
-    // Преобразуем createdAt в число, если это строка
-    const createdAt = typeof report.createdAt === 'number'
-      ? report.createdAt
-      : new Date(report.createdAt).getTime()
-
-    // Проверяем, является ли ID валидным UUID
-    const isValidUUID = (str: string): boolean => {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      return uuidRegex.test(str)
-    }
-
-    // Формируем объект для upsert
-    const upsertData: any = {
-      user_id: userId,
-      year: report.year,
-      month: report.month,
-      plan: report.plan,
-      actual: report.actual || null,
-      created_at: createdAt,
-      updated_at: new Date().toISOString(),
-    }
-
-    // Добавляем id только если это валидный UUID (для обновления существующего отчета)
-    if (report.id && isValidUUID(report.id)) {
-      upsertData.id = report.id
-    }
-
-    const { error } = await supabase
-      .from('monthly_reports')
-      .upsert(upsertData, {
-        onConflict: 'user_id,year,month',
-      })
-
-    if (error) {
-      console.error('Ошибка сохранения отчета:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка сохранения отчета:', error)
-    throw error
-  }
-}
-
-// Загрузка всех отчетов
-export const loadAllReports = async (userId: string): Promise<MonthlyReport[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('monthly_reports')
-      .select('*')
-      .eq('user_id', userId)
-      .order('year', { ascending: false })
-      .order('month', { ascending: false })
-
-    if (error) {
-      console.error('Ошибка загрузки отчетов:', error)
-      throw error
-    }
-
-    if (!data) {
-      return []
-    }
-
-    return data.map((row: any) => ({
-      id: row.id,
-      year: row.year,
-      month: row.month,
-      plan: row.plan,
-      actual: row.actual,
-      createdAt: typeof row.created_at === 'number' ? row.created_at : new Date(row.created_at).getTime(),
-    }))
-  } catch (error) {
-    console.error('Ошибка загрузки отчетов:', error)
-    throw error
-  }
-}
-
-// Удаление отчета за месяц
-export const deleteReport = async (userId: string, year: number, month: number): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('monthly_reports')
-      .delete()
-      .eq('user_id', userId)
-      .eq('year', year)
-      .eq('month', month)
-
-    if (error) {
-      console.error('Ошибка удаления отчета:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка удаления отчета:', error)
-    throw error
-  }
-}
-
-// Сохранение настроек
-export const saveSettings = async (userId: string, settings: Settings): Promise<void> => {
-  try {
-    // Загружаем существующие настройки
-    const { data: existing } = await supabase
-      .from('user_settings')
-      .select('settings')
-      .eq('user_id', userId)
-      .single()
-
-    const existingSettings = existing?.settings || {}
-    const mergedSettings = { ...existingSettings, ...settings }
-
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert({
-        user_id: userId,
-        settings: mergedSettings,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
-
-    if (error) {
-      console.error('Ошибка сохранения настроек:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка сохранения настроек:', error)
-    throw error
-  }
-}
-
-// Загрузка настроек
-export const loadSettings = async (userId: string): Promise<Settings | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('user_settings')
-      .select('settings')
-      .eq('user_id', userId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Запись не найдена
-        return null
-      }
-      console.error('Ошибка загрузки настроек:', error)
-      throw error
-    }
-
-    return data?.settings || null
-  } catch (error) {
-    console.error('Ошибка загрузки настроек:', error)
-    throw error
-  }
-}
-
-// Сохранение вычетов из копилок
-export const saveSavingsWithdrawals = async (userId: string, withdrawals: SavingsTransaction[]): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('savings_withdrawals')
-      .upsert({
-        user_id: userId,
-        withdrawals: withdrawals,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id',
-      })
-
-    if (error) {
-      console.error('Ошибка сохранения вычетов из копилок:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка сохранения вычетов из копилок:', error)
-    throw error
-  }
-}
-
-// Загрузка вычетов из копилок
-export const loadSavingsWithdrawals = async (userId: string): Promise<SavingsTransaction[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('savings_withdrawals')
-      .select('withdrawals')
-      .eq('user_id', userId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // Запись не найдена
-        return []
-      }
-      console.error('Ошибка загрузки вычетов из копилок:', error)
-      throw error
-    }
-
-    return data?.withdrawals || []
-  } catch (error) {
-    console.error('Ошибка загрузки вычетов из копилок:', error)
-    throw error
-  }
-}
-
-// Транзакции (доходы/расходы)
-export const createTransaction = async (userId: string, transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction> => {
-  try {
-    const createdAt = Date.now()
-
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: userId,
-        amount: transaction.amount,
-        category_id: transaction.categoryId,
-        category_name: transaction.categoryName,
-        type: transaction.type,
-        date: transaction.date,
-        created_at: createdAt,
-        description: transaction.description || null,
-      })
-      .select('*')
-      .single()
-
-    if (error) {
-      console.error('Ошибка создания транзакции:', error)
-      throw error
-    }
-
-    return {
-      id: data.id,
-      userId,
-      amount: Number(data.amount),
-      categoryId: data.category_id,
-      categoryName: data.category_name,
-      type: data.type,
-      date: data.date,
-      createdAt: typeof data.created_at === 'number' ? data.created_at : createdAt,
-      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : undefined,
-      description: data.description ?? undefined,
-    }
-  } catch (error) {
-    console.error('Ошибка создания транзакции:', error)
-    throw error
-  }
-}
-
-export const loadTransactions = async (userId: string, fromDate?: number, toDate?: number): Promise<Transaction[]> => {
-  try {
-    let query = supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-
-    if (fromDate !== undefined) {
-      query = query.gte('date', fromDate)
-    }
-    if (toDate !== undefined) {
-      query = query.lte('date', toDate)
-    }
-
-    const { data, error } = await query.order('date', { ascending: false }).order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Ошибка загрузки транзакций:', error)
-      throw error
-    }
-
-    if (!data) {
-      return []
-    }
-
-    return data.map((row: any) => ({
-      id: row.id,
-      userId,
-      amount: Number(row.amount),
-      categoryId: row.category_id,
-      categoryName: row.category_name,
-      type: row.type,
-      date: typeof row.date === 'number' ? row.date : new Date(row.date).getTime(),
-      createdAt: typeof row.created_at === 'number' ? row.created_at : new Date(row.created_at).getTime(),
-      updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : undefined,
-      description: row.description ?? undefined,
-    }))
-  } catch (error) {
-    console.error('Ошибка загрузки транзакций:', error)
-    throw error
-  }
-}
-
-export const updateTransaction = async (userId: string, transaction: Transaction): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('transactions')
-      .update({
-        amount: transaction.amount,
-        category_id: transaction.categoryId,
-        category_name: transaction.categoryName,
-        type: transaction.type,
-        date: transaction.date,
-        description: transaction.description || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', transaction.id)
-      .eq('user_id', userId)
-
-    if (error) {
-      console.error('Ошибка обновления транзакции:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка обновления транзакции:', error)
-    throw error
-  }
-}
-
-export const deleteTransaction = async (userId: string, transactionId: string): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId)
-      .eq('user_id', userId)
-
-    if (error) {
-      console.error('Ошибка удаления транзакции:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка удаления транзакции:', error)
-    throw error
-  }
+export const deleteTransaction = async (transactionId: string): Promise<void> => {
+  const transactions = readStorage<Transaction[]>(STORAGE_KEYS.transactions, [])
+  const filteredTransactions = transactions.filter((item) => item.id !== transactionId)
+  writeStorage(STORAGE_KEYS.transactions, filteredTransactions)
 }
 

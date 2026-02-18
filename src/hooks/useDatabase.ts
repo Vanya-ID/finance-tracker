@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useAuth } from './useAuth'
 import {
   saveFinancialData as saveFinancialDataToDB,
   loadFinancialData as loadFinancialDataFromDB,
@@ -28,8 +27,6 @@ type Settings = {
 }
 
 export const useDatabase = () => {
-  const { user, isAuthenticated } = useAuth()
-  
   // Состояния загрузки/сохранения
   const [saving, setSaving] = useState(false)
   
@@ -45,14 +42,10 @@ export const useDatabase = () => {
 
   // Немедленное сохранение финансовых данных (для add/remove операций)
   const saveFinancialDataImmediate = useCallback(async (data: FinancialData): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     // Ручные операции всегда сохраняются, независимо от skipFinancialSaveRef
     try {
       setSaving(true)
-      await saveFinancialDataToDB(user.id, data)
+      await saveFinancialDataToDB(data)
     } catch (error) {
       console.error('Ошибка сохранения финансовых данных:', error)
       throw error
@@ -62,14 +55,10 @@ export const useDatabase = () => {
         setSaving(false)
       }, 100)
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Debounced сохранение финансовых данных (для update операций)
   const saveFinancialDataDebounced = useCallback((data: FinancialData): void => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     // Пропускаем сохранение сразу после загрузки данных из Firebase
     if (skipFinancialSaveRef.current) {
       skipFinancialSaveRef.current = false
@@ -85,24 +74,20 @@ export const useDatabase = () => {
     financialSaveTimeoutRef.current = setTimeout(async () => {
       try {
         setSaving(true)
-        await saveFinancialDataToDB(user.id, data)
+        await saveFinancialDataToDB(data)
       } catch (error) {
         console.error('Ошибка сохранения финансовых данных:', error)
       } finally {
         setSaving(false)
       }
     }, 500)
-  }, [isAuthenticated, user])
+  }, [])
 
   // Загрузка финансовых данных
   const loadFinancialData = useCallback(async (): Promise<FinancialData | null> => {
-    if (!isAuthenticated || !user) {
-      return null
-    }
-    
     skipFinancialSaveRef.current = true // Пропускаем сохранение после загрузки
     try {
-      const data = await loadFinancialDataFromDB(user.id)
+      const data = await loadFinancialDataFromDB()
       return data
     } catch (error) {
       console.error('Ошибка загрузки финансовых данных:', error)
@@ -113,29 +98,21 @@ export const useDatabase = () => {
         skipFinancialSaveRef.current = false
       }, 100)
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Немедленное сохранение настроек
   const saveSettingsImmediate = useCallback(async (settings: Settings): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     // Ручные операции всегда сохраняются
     try {
-      await saveSettingsToDB(user.id, settings)
+      await saveSettingsToDB(settings)
     } catch (error) {
       console.error('Ошибка сохранения настроек:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Debounced сохранение настроек
   const saveSettingsDebounced = useCallback((settings: Settings): void => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     // Пропускаем сохранение сразу после загрузки настроек
     if (skipSettingsSaveRef.current) {
       skipSettingsSaveRef.current = false
@@ -150,22 +127,18 @@ export const useDatabase = () => {
     // Устанавливаем новый таймер
     settingsSaveTimeoutRef.current = setTimeout(async () => {
       try {
-        await saveSettingsToDB(user.id, settings)
+        await saveSettingsToDB(settings)
       } catch (error) {
         console.error('Ошибка сохранения настроек:', error)
       }
     }, 500)
-  }, [isAuthenticated, user])
+  }, [])
 
   // Загрузка настроек
   const loadSettings = useCallback(async (): Promise<Settings | null> => {
-    if (!isAuthenticated || !user) {
-      return null
-    }
-    
     skipSettingsSaveRef.current = true // Пропускаем сохранение после загрузки
     try {
-      const settings = await loadSettingsFromDB(user.id)
+      const settings = await loadSettingsFromDB()
       return settings
     } catch (error) {
       console.error('Ошибка загрузки настроек:', error)
@@ -176,14 +149,10 @@ export const useDatabase = () => {
         skipSettingsSaveRef.current = false
       }, 100)
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Debounced сохранение профиля
   const saveProfileDebounced = useCallback((profile: UserProfile): void => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     // Пропускаем сохранение сразу после загрузки профиля
     if (skipProfileSaveRef.current) {
       skipProfileSaveRef.current = false
@@ -198,22 +167,18 @@ export const useDatabase = () => {
     // Устанавливаем новый таймер
     profileSaveTimeoutRef.current = setTimeout(async () => {
       try {
-        await saveProfileToDB(user.id, profile)
+        await saveProfileToDB(profile)
       } catch (error) {
         console.error('Ошибка сохранения профиля:', error)
       }
     }, 500)
-  }, [isAuthenticated, user])
+  }, [])
 
   // Загрузка профиля
   const loadProfile = useCallback(async (): Promise<UserProfile | null> => {
-    if (!isAuthenticated || !user) {
-      return null
-    }
-    
     skipProfileSaveRef.current = true // Пропускаем сохранение после загрузки
     try {
-      const profile = await loadProfileFromDB(user.id)
+      const profile = await loadProfileFromDB()
       return profile
     } catch (error) {
       console.error('Ошибка загрузки профиля:', error)
@@ -224,120 +189,88 @@ export const useDatabase = () => {
         skipProfileSaveRef.current = false
       }, 100)
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Сохранение отчета
   const saveReport = useCallback(async (report: MonthlyReport): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      throw new Error('Не авторизован для сохранения отчета')
-    }
-    
     try {
-      await saveReportToDB(user.id, report)
+      await saveReportToDB(report)
     } catch (error) {
       console.error('Ошибка сохранения отчета:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Загрузка всех отчетов
   const loadAllReports = useCallback(async (): Promise<MonthlyReport[]> => {
-    if (!isAuthenticated || !user) {
-      return []
-    }
-    
     try {
-      const reports = await loadAllReportsFromDB(user.id)
+      const reports = await loadAllReportsFromDB()
       return reports
     } catch (error) {
       console.error('Ошибка загрузки отчетов:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Сохранение вычетов из копилок
   const saveSavingsWithdrawals = useCallback(async (withdrawals: SavingsTransaction[]): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-    
     try {
-      await saveSavingsWithdrawalsToDB(user.id, withdrawals)
+      await saveSavingsWithdrawalsToDB(withdrawals)
     } catch (error) {
       console.error('Ошибка сохранения вычетов из копилок:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Загрузка вычетов из копилок
   const loadSavingsWithdrawals = useCallback(async (): Promise<SavingsTransaction[]> => {
-    if (!isAuthenticated || !user) {
-      return []
-    }
-    
     try {
-      const withdrawals = await loadSavingsWithdrawalsFromDB(user.id)
+      const withdrawals = await loadSavingsWithdrawalsFromDB()
       return withdrawals
     } catch (error) {
       console.error('Ошибка загрузки вычетов из копилок:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Транзакции
   const createTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction | null> => {
-    if (!isAuthenticated || !user) {
-      return null
-    }
-
     try {
-      const result = await createTransactionInDB(user.id, transaction)
+      const result = await createTransactionInDB(transaction)
       return result
     } catch (error) {
       console.error('Ошибка создания транзакции:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   const loadTransactions = useCallback(async (fromDate?: number, toDate?: number): Promise<Transaction[]> => {
-    if (!isAuthenticated || !user) {
-      return []
-    }
-
     try {
-      const result = await loadTransactionsFromDB(user.id, fromDate, toDate)
+      const result = await loadTransactionsFromDB(fromDate, toDate)
       return result
     } catch (error) {
       console.error('Ошибка загрузки транзакций:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   const updateTransaction = useCallback(async (transaction: Transaction): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-
     try {
-      await updateTransactionInDB(user.id, transaction)
+      await updateTransactionInDB(transaction)
     } catch (error) {
       console.error('Ошибка обновления транзакции:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   const deleteTransaction = useCallback(async (transactionId: string): Promise<void> => {
-    if (!isAuthenticated || !user) {
-      return
-    }
-
     try {
-      await deleteTransactionFromDB(user.id, transactionId)
+      await deleteTransactionFromDB(transactionId)
     } catch (error) {
       console.error('Ошибка удаления транзакции:', error)
       throw error
     }
-  }, [isAuthenticated, user])
+  }, [])
 
   // Очистка таймеров при размонтировании
   useEffect(() => {

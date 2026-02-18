@@ -72,7 +72,7 @@ export const PlanExpensesCard: React.FC<PlanExpensesCardProps> = ({
         >
           <div className="plan-expenses-drag-icon">💰</div>
           <div className="plan-expenses-drag-text">
-            {currentAmount > 0 
+            {currentAmount > 0
               ? `Перетащите ${currentAmount.toLocaleString('ru-RU')} Br`
               : 'Нет доступной суммы'
             }

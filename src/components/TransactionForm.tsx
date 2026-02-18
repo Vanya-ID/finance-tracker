@@ -55,7 +55,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const amountNum = parseFloat(amount)
     if (!amountNum || amountNum <= 0) {
       alert('Введите корректную сумму')

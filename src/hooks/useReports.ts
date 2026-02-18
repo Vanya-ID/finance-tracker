@@ -2,15 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { MonthlyReport, FinancialData, ActualFinancialData } from '../types'
 import { useDatabase } from './useDatabase'
 import { deleteReport as deleteReportFromDB } from '../services/supabaseDataService'
-import { useAuth } from './useAuth'
 
 export const useReports = () => {
-  const { user, isAuthenticated } = useAuth()
   const { saveReport: saveReportToDB, loadAllReports: loadAllReportsFromDB } = useDatabase()
   const [reports, setReports] = useState<MonthlyReport[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Загрузка отчетов из Firebase
+  // Загрузка отчетов из localStorage
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
@@ -24,13 +22,8 @@ export const useReports = () => {
         setLoading(false)
       }
     }
-    if (isAuthenticated) {
-      loadData()
-    } else {
-      setReports([])
-      setLoading(false)
-    }
-  }, [isAuthenticated, loadAllReportsFromDB])
+    loadData()
+  }, [loadAllReportsFromDB])
 
   const createReport = (year: number, month: number, plan: FinancialData): MonthlyReport => {
     const report: MonthlyReport = {
@@ -44,14 +37,9 @@ export const useReports = () => {
   }
 
   const saveReport = async (report: MonthlyReport) => {
-    if (!isAuthenticated || !user) {
-      console.error('Не авторизован для сохранения отчета')
-      return
-    }
-
     try {
       await saveReportToDB(report)
-      // Перезагружаем отчеты из БД, чтобы получить правильные UUID
+      // Перезагружаем отчеты после сохранения
       const updatedReports = await loadAllReportsFromDB()
       setReports(updatedReports)
     } catch (error) {
@@ -65,11 +53,6 @@ export const useReports = () => {
   }
 
   const updateReportActual = async (year: number, month: number, actual: ActualFinancialData, plan?: FinancialData) => {
-    if (!isAuthenticated || !user) {
-      console.error('Не авторизован для обновления отчета')
-      return
-    }
-
     const report = getReport(year, month)
     if (report) {
       // Используем существующий отчет с его ID (UUID из БД)
@@ -86,18 +69,12 @@ export const useReports = () => {
         mandatoryExpenses: 0,
       }
       const newReport = createReport(year, month, reportPlan)
-      // Удаляем сгенерированный строковый ID, чтобы Supabase создал UUID
       const { id, ...reportWithoutId } = newReport
       await saveReport({ ...reportWithoutId, actual } as MonthlyReport)
     }
   }
 
   const updateReportPlan = async (year: number, month: number, plan: FinancialData) => {
-    if (!isAuthenticated || !user) {
-      console.error('Не авторизован для обновления плана отчета')
-      return
-    }
-
     const report = getReport(year, month)
     if (report) {
       await saveReport({ ...report, plan: JSON.parse(JSON.stringify(plan)) })
@@ -117,15 +94,10 @@ export const useReports = () => {
   }
 
   const deleteReport = async (id: string) => {
-    if (!isAuthenticated || !user) {
-      console.error('Не авторизован для удаления отчета')
-      return
-    }
-
     try {
       const report = reports.find((r) => r.id === id)
       if (report) {
-        await deleteReportFromDB(user.id, report.year, report.month)
+        await deleteReportFromDB(report.year, report.month)
         setReports((prev) => prev.filter((r) => r.id !== id))
       }
     } catch (error) {

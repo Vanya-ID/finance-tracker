@@ -20,7 +20,6 @@ export const useTransactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<TransactionsFilter>({ type: 'all' })
-  const [tableNotFound, setTableNotFound] = useState(false)
 
   const load = useCallback(
     async (overrideFilter?: TransactionsFilter) => {
@@ -31,13 +30,6 @@ export const useTransactions = () => {
         setTransactions(items || [])
       } catch (error) {
         console.error('Ошибка загрузки транзакций:', error)
-        // Если таблица не существует, просто возвращаем пустой массив
-        if ((error as any)?.code === 'PGRST205') {
-          console.warn('Таблица transactions не найдена. Выполните SQL скрипт из supabase_schema.sql')
-          setTableNotFound(true)
-        } else {
-          setTableNotFound(false)
-        }
         setTransactions([])
       } finally {
         setLoading(false)
@@ -140,7 +132,6 @@ export const useTransactions = () => {
     deleteTransaction: removeTransaction,
     getCategoryTotal,
     categoryTotals,
-    tableNotFound,
   }
 }
 
