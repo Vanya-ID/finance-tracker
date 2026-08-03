@@ -1,82 +1,88 @@
-import { User } from '@supabase/supabase-js'
+import { SupabaseClient, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
-export const signInWithGoogle = async (): Promise<User> => {
-  try {
-    // Проверяем, есть ли уже сессия
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      return session.user
-    }
-
-    // Инициируем OAuth вход
-    // Формируем правильный redirect URL для GitHub Pages
-    const basePath = import.meta.env.BASE_URL || '/'
-    // Убираем лишние слеши
-    const cleanBasePath = basePath.replace(/\/+$/, '')
-    const redirectUrl = `${window.location.origin}${cleanBasePath}/login`
-    
-    console.log('🔑 [signInWithGoogle] Redirect URL:', redirectUrl)
-    console.log('🔑 [signInWithGoogle] Origin:', window.location.origin)
-    console.log('🔑 [signInWithGoogle] Base path:', cleanBasePath)
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: redirectUrl,
-        skipBrowserRedirect: false,
-      },
-    })
-
-    if (error) {
-      console.error('❌ [signInWithGoogle] Ошибка входа через Google:', error)
-      throw error
-    }
-
-    // После редиректа пользователь будет авторизован
-    // Но здесь мы не можем получить пользователя сразу, так как происходит редирект
-    // Поэтому возвращаем null и обрабатываем это в компоненте
-    throw new Error('Redirecting to Google...')
-  } catch (error: any) {
-    if (error.message === 'Redirecting to Google...') {
-      throw error
-    }
-    console.error('❌ [signInWithGoogle] Ошибка входа через Google:', error)
-    throw error
+const requireClient = (): SupabaseClient => {
+  if (!supabase) {
+    throw new Error('Синхронизация не настроена: не заданы ключи Supabase')
   }
+
+  return supabase
+}
+
+const translateAuthError = (message: string): string => {
+  if (/Invalid login credentials/i.test(message)) {
+    return 'Неверный email или пароль'
+  }
+  if (/User already registered/i.test(message)) {
+    return 'Пользователь с таким email уже зарегистрирован'
+  }
+  if (/Password should be at least/i.test(message)) {
+    return 'Пароль должен быть не короче 6 символов'
+  }
+  if (/Email not confirmed/i.test(message)) {
+    return 'Email не подтверждён — проверьте почту'
+  }
+  if (/Failed to fetch|NetworkError/i.test(message)) {
+    return 'Сервер недоступен (возможно, проект Supabase на паузе)'
+  }
+  return message
+}
+
+export const signUpWithPassword = async (email: string, password: string): Promise<User | null> => {
+  const { data, error } = await requireClient().auth.signUp({ email, password })
+
+  if (error) {
+    throw new Error(translateAuthError(error.message))
+  }
+
+  return data.user
+}
+
+export const signInWithPassword = async (email: string, password: string): Promise<User> => {
+  const { data, error } = await requireClient().auth.signInWithPassword({ email, password })
+
+  if (error) {
+    throw new Error(translateAuthError(error.message))
+  }
+
+  return data.user
 }
 
 export const signOut = async (): Promise<void> => {
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Ошибка выхода:', error)
-      throw error
-    }
-  } catch (error) {
-    console.error('Ошибка выхода:', error)
-    throw error
+  const { error } = await requireClient().auth.signOut()
+
+  if (error) {
+    throw new Error(translateAuthError(error.message))
   }
 }
 
-export const getCurrentUser = (): User | null => {
-  // Supabase не предоставляет синхронный метод получения пользователя
-  // Используем getSession() через async/await в хуке
-  return null
+export const getSessionUser = async (): Promise<User | null> => {
+  if (!supabase) {
+    return null
+  }
+
+  const { data, error } = await supabase.auth.getSession()
+
+  if (error) {
+    console.error('Ошибка получения сессии:', error)
+    return null
+  }
+
+  return data.session?.user ?? null
 }
 
-export const onAuthStateChanged = (
-  callback: (user: User | null) => void
-): (() => void) => {
+export const onAuthStateChanged = (callback: (user: User | null) => void): (() => void) => {
+  if (!supabase) {
+    return () => undefined
+  }
+
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ?? null)
   })
 
-  // Возвращаем функцию для отписки
   return () => {
     subscription.unsubscribe()
   }
 }
-

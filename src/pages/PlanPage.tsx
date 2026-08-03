@@ -45,27 +45,32 @@ export const PlanPage: React.FC = () => {
     addSavingsCategory,
     removeSavingsCategory,
     updateSavingsCategoryName,
-    addExpenseCategory,
-    removeExpenseCategory,
-    updateExpenseCategoryName,
-    updateIncomeIcon,
-    updateExpenseIcon,
     updateSavingsIcon,
-    reorderExpenses,
     reorderSavings,
-    mandatoryExpensesPercentage,
-    selectedPresetType,
-    setSelectedPresetType,
-    customPercentages,
-    setCustomPercentages,
-    // Функции для работы с группами
     getSavingsChildren,
     calculateGroupTotals,
     addSavingsGroup,
     convertSavingsToGroup,
     convertGroupToSavings,
     moveSavingsToGroup,
+    addExpenseCategory,
+    removeExpenseCategory,
+    updateExpenseCategoryName,
+    updateIncomeIcon,
+    updateExpenseIcon,
+    reorderExpenses,
+    mandatoryExpensesPercentage,
+    selectedPresetType,
+    setSelectedPresetType,
+    customPercentages,
+    setCustomPercentages,
+    rulesEnabled,
   } = useFinancialData()
+
+  const effectiveMandatoryPercentage = rulesEnabled ? mandatoryExpensesPercentage : 0
+  const effectiveSavingsPercentage = rulesEnabled
+    ? (selectedPresetType === '50-30-20' ? 30 : selectedPresetType === '50-40-10' ? 40 : customPercentages.savings)
+    : 0
 
   const handleSave = async () => {
     try {
@@ -100,14 +105,16 @@ export const PlanPage: React.FC = () => {
         onToggleCollapse={() => toggleSection('income')}
       />
 
-      <DistributionRules
-        selectedPresetType={selectedPresetType}
-        onPresetChange={setSelectedPresetType}
-        customPercentages={customPercentages}
-        onCustomPercentagesChange={setCustomPercentages}
-        isCollapsed={collapsedSections.rules}
-        onToggleCollapse={() => toggleSection('rules')}
-      />
+      {rulesEnabled && (
+        <DistributionRules
+          selectedPresetType={selectedPresetType}
+          onPresetChange={setSelectedPresetType}
+          customPercentages={customPercentages}
+          onCustomPercentagesChange={setCustomPercentages}
+          isCollapsed={collapsedSections.rules}
+          onToggleCollapse={() => toggleSection('rules')}
+        />
+      )}
 
       <FinancialSummary
         totalIncome={totalIncome}
@@ -116,7 +123,7 @@ export const PlanPage: React.FC = () => {
         totalExpenses={totalExpenses}
         tax={data.tax}
         balance={balance}
-        mandatoryExpensesPercentage={mandatoryExpensesPercentage}
+        mandatoryExpensesPercentage={effectiveMandatoryPercentage}
         onMandatoryExpensesChange={updateMandatoryExpenses}
         onTaxChange={updateTax}
         isCollapsed={collapsedSections.summary}
@@ -126,10 +133,8 @@ export const PlanPage: React.FC = () => {
       <SavingsSection
         savings={data.savings}
         exchangeRate={data.exchangeRate}
-        availableAmount={mandatoryExpensesPercentage > 0 
-          ? totalIncome * (100 - mandatoryExpensesPercentage) / 100 
-          : totalIncome - data.mandatoryExpenses}
-        savingsPercentage={selectedPresetType === '50-30-20' ? 30 : selectedPresetType === '50-40-10' ? 40 : selectedPresetType === 'custom' ? customPercentages.savings : 0}
+        availableAmount={totalIncome - totalExpenses - data.mandatoryExpenses - data.tax}
+        savingsPercentage={effectiveSavingsPercentage}
         totalIncome={totalIncome}
         onSavingsChange={updateSavingsItem}
         onExchangeRateChange={updateExchangeRate}
@@ -151,7 +156,7 @@ export const PlanPage: React.FC = () => {
       <ExpensesSection
         expenses={data.expenses}
         totalIncome={totalIncome}
-        mandatoryExpensesPercentage={mandatoryExpensesPercentage}
+        mandatoryExpensesPercentage={effectiveMandatoryPercentage}
         onExpenseChange={updateExpenseItem}
         onAddCategory={addExpenseCategory}
         onRemoveCategory={removeExpenseCategory}
@@ -164,4 +169,3 @@ export const PlanPage: React.FC = () => {
     </div>
   )
 }
-

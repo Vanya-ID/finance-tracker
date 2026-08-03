@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useNotification } from '../contexts/NotificationContext'
 import { Navigation } from './Navigation'
 import { ToastContainer } from './Toast'
+import { SyncButton } from './SyncButton'
 import './Layout.css'
 
 export const Layout: React.FC = () => {
@@ -18,9 +19,12 @@ export const Layout: React.FC = () => {
             <h1>💰 Учет доходов и расходов</h1>
             <p className="app-subtitle">Умное управление финансами с автоматическим распределением</p>
           </div>
-          <button onClick={toggleTheme} className="theme-toggle" aria-label="Переключить тему">
-            {theme === 'light' ? '🌙' : '☀️'}
-          </button>
+          <div className="header-actions">
+            <SyncButton />
+            <button onClick={toggleTheme} className="theme-toggle" aria-label="Переключить тему">
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+          </div>
         </div>
       </header>
 

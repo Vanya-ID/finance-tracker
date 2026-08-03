@@ -6,35 +6,19 @@ import {
   loadSettings as loadSettingsFromDB,
   saveProfile as saveProfileToDB,
   loadProfile as loadProfileFromDB,
-  saveReport as saveReportToDB,
-  loadAllReports as loadAllReportsFromDB,
-  saveSavingsWithdrawals as saveSavingsWithdrawalsToDB,
-  loadSavingsWithdrawals as loadSavingsWithdrawalsFromDB,
-  createTransaction as createTransactionInDB,
-  loadTransactions as loadTransactionsFromDB,
-  updateTransaction as updateTransactionInDB,
-  deleteTransaction as deleteTransactionFromDB,
 } from '../services/supabaseDataService'
-import { FinancialData, UserProfile, MonthlyReport, SavingsTransaction, DistributionRule, Transaction } from '../types'
-
-type Settings = {
-  selectedPresetType?: '50-30-20' | '50-40-10' | 'custom'
-  mandatoryExpensesPercentage?: number
-  exchangeRate?: number
-  distributionRules?: DistributionRule[]
-  customPercentages?: { mandatory: number; savings: number; remainder: number }
-  selectedSavingsForStats?: string[]
-}
+import { Settings } from '../services/supabaseDataService'
+import { FinancialData, UserProfile } from '../types'
 
 export const useDatabase = () => {
   // Состояния загрузки/сохранения
   const [saving, setSaving] = useState(false)
-  
+
   // Refs для пропуска сохранения после загрузки
   const skipFinancialSaveRef = useRef(false)
   const skipSettingsSaveRef = useRef(false)
   const skipProfileSaveRef = useRef(false)
-  
+
   // Debounce таймеры
   const financialSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const settingsSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -59,17 +43,17 @@ export const useDatabase = () => {
 
   // Debounced сохранение финансовых данных (для update операций)
   const saveFinancialDataDebounced = useCallback((data: FinancialData): void => {
-    // Пропускаем сохранение сразу после загрузки данных из Firebase
+    // Пропускаем сохранение сразу после загрузки данных
     if (skipFinancialSaveRef.current) {
       skipFinancialSaveRef.current = false
       return
     }
-    
+
     // Очищаем предыдущий таймер
     if (financialSaveTimeoutRef.current) {
       clearTimeout(financialSaveTimeoutRef.current)
     }
-    
+
     // Устанавливаем новый таймер
     financialSaveTimeoutRef.current = setTimeout(async () => {
       try {
@@ -100,17 +84,6 @@ export const useDatabase = () => {
     }
   }, [])
 
-  // Немедленное сохранение настроек
-  const saveSettingsImmediate = useCallback(async (settings: Settings): Promise<void> => {
-    // Ручные операции всегда сохраняются
-    try {
-      await saveSettingsToDB(settings)
-    } catch (error) {
-      console.error('Ошибка сохранения настроек:', error)
-      throw error
-    }
-  }, [])
-
   // Debounced сохранение настроек
   const saveSettingsDebounced = useCallback((settings: Settings): void => {
     // Пропускаем сохранение сразу после загрузки настроек
@@ -118,12 +91,12 @@ export const useDatabase = () => {
       skipSettingsSaveRef.current = false
       return
     }
-    
+
     // Очищаем предыдущий таймер
     if (settingsSaveTimeoutRef.current) {
       clearTimeout(settingsSaveTimeoutRef.current)
     }
-    
+
     // Устанавливаем новый таймер
     settingsSaveTimeoutRef.current = setTimeout(async () => {
       try {
@@ -158,12 +131,12 @@ export const useDatabase = () => {
       skipProfileSaveRef.current = false
       return
     }
-    
+
     // Очищаем предыдущий таймер
     if (profileSaveTimeoutRef.current) {
       clearTimeout(profileSaveTimeoutRef.current)
     }
-    
+
     // Устанавливаем новый таймер
     profileSaveTimeoutRef.current = setTimeout(async () => {
       try {
@@ -191,87 +164,6 @@ export const useDatabase = () => {
     }
   }, [])
 
-  // Сохранение отчета
-  const saveReport = useCallback(async (report: MonthlyReport): Promise<void> => {
-    try {
-      await saveReportToDB(report)
-    } catch (error) {
-      console.error('Ошибка сохранения отчета:', error)
-      throw error
-    }
-  }, [])
-
-  // Загрузка всех отчетов
-  const loadAllReports = useCallback(async (): Promise<MonthlyReport[]> => {
-    try {
-      const reports = await loadAllReportsFromDB()
-      return reports
-    } catch (error) {
-      console.error('Ошибка загрузки отчетов:', error)
-      throw error
-    }
-  }, [])
-
-  // Сохранение вычетов из копилок
-  const saveSavingsWithdrawals = useCallback(async (withdrawals: SavingsTransaction[]): Promise<void> => {
-    try {
-      await saveSavingsWithdrawalsToDB(withdrawals)
-    } catch (error) {
-      console.error('Ошибка сохранения вычетов из копилок:', error)
-      throw error
-    }
-  }, [])
-
-  // Загрузка вычетов из копилок
-  const loadSavingsWithdrawals = useCallback(async (): Promise<SavingsTransaction[]> => {
-    try {
-      const withdrawals = await loadSavingsWithdrawalsFromDB()
-      return withdrawals
-    } catch (error) {
-      console.error('Ошибка загрузки вычетов из копилок:', error)
-      throw error
-    }
-  }, [])
-
-  // Транзакции
-  const createTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'userId' | 'createdAt'>): Promise<Transaction | null> => {
-    try {
-      const result = await createTransactionInDB(transaction)
-      return result
-    } catch (error) {
-      console.error('Ошибка создания транзакции:', error)
-      throw error
-    }
-  }, [])
-
-  const loadTransactions = useCallback(async (fromDate?: number, toDate?: number): Promise<Transaction[]> => {
-    try {
-      const result = await loadTransactionsFromDB(fromDate, toDate)
-      return result
-    } catch (error) {
-      console.error('Ошибка загрузки транзакций:', error)
-      throw error
-    }
-  }, [])
-
-  const updateTransaction = useCallback(async (transaction: Transaction): Promise<void> => {
-    try {
-      await updateTransactionInDB(transaction)
-    } catch (error) {
-      console.error('Ошибка обновления транзакции:', error)
-      throw error
-    }
-  }, [])
-
-  const deleteTransaction = useCallback(async (transactionId: string): Promise<void> => {
-    try {
-      await deleteTransactionFromDB(transactionId)
-    } catch (error) {
-      console.error('Ошибка удаления транзакции:', error)
-      throw error
-    }
-  }, [])
-
   // Очистка таймеров при размонтировании
   useEffect(() => {
     return () => {
@@ -292,19 +184,9 @@ export const useDatabase = () => {
     saveFinancialDataImmediate,
     saveFinancialDataDebounced,
     loadFinancialData,
-    saveSettingsImmediate,
     saveSettingsDebounced,
     loadSettings,
     saveProfileDebounced,
     loadProfile,
-    saveReport,
-    loadAllReports,
-    saveSavingsWithdrawals,
-    loadSavingsWithdrawals,
-    createTransaction,
-    loadTransactions,
-    updateTransaction,
-    deleteTransaction,
   }
 }
-

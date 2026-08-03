@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { FinancialData, SavingsItem, DistributionRule, IncomeItem } from '../types'
+import { FinancialData, IncomeItem, SavingsItem } from '../types'
 import {
   calculateSavingsTotal,
   calculateExpensesTotal,
@@ -32,53 +32,46 @@ export const useFinancialData = () => {
     saveSettingsDebounced,
     loadSettings: loadSettingsFromDB,
   } = useDatabase()
-  
+
   const [data, setData] = useState<FinancialData>(defaultFinancialData)
   const [, setDataLoading] = useState(true)
-  const [distributionRules, setDistributionRules] = useState<DistributionRule[]>([])
   const [mandatoryExpensesPercentage, setMandatoryExpensesPercentage] = useState<number>(50)
   const [selectedPresetType, setSelectedPresetType] = useState<'50-30-20' | '50-40-10' | 'custom'>('50-30-20')
   const [customPercentages, setCustomPercentages] = useState<{ mandatory: number; savings: number; remainder: number }>({ mandatory: 50, savings: 30, remainder: 20 })
+  const [rulesEnabled, setRulesEnabled] = useState<boolean>(true)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
 
-  // Загрузка финансовых данных из Firebase
+  // Загрузка финансовых данных из хранилища
   useEffect(() => {
     const loadData = async () => {
       setDataLoading(true)
       try {
-        const firebaseData = await loadFinancialDataFromDB()
-        if (firebaseData) {
-          // Очищаем осиротевшие копилки (у которых parentId указывает на несуществующую группу)
-          const existingGroupIds = new Set(
-            firebaseData.savings
-              .filter((item) => item.isGroup)
-              .map((item) => item.id)
-          )
-          
-          const hasOrphanedItems = firebaseData.savings.some(
-            (item) => item.parentId && !existingGroupIds.has(item.parentId)
-          )
-          
-          if (hasOrphanedItems) {
-            const cleanedSavings = firebaseData.savings.map((item) => {
-              // Если у копилки есть parentId, но родительской группы не существует, убираем parentId
-              if (item.parentId && !existingGroupIds.has(item.parentId)) {
-                return { ...item, parentId: undefined }
-              }
-              return item
-            })
-            
-            const cleanedData = { ...firebaseData, savings: cleanedSavings }
-            setData(cleanedData)
-            // Сохраняем очищенные данные
-            saveFinancialDataImmediate(cleanedData)
-          } else {
-            setData(firebaseData)
-          }
-        } else {
+        const storedData = await loadFinancialDataFromDB()
+        if (!storedData) {
           setData(defaultFinancialData)
+          return
         }
+
+        // Убираем копилки, чья группа больше не существует
+        const savings = storedData.savings ?? []
+        const existingGroupIds = new Set(
+          savings.filter((item) => item.isGroup).map((item) => item.id)
+        )
+        const cleanedSavings = savings.map((item) =>
+          item.parentId && !existingGroupIds.has(item.parentId)
+            ? { ...item, parentId: undefined }
+            : item
+        )
+
+        setData({
+          incomes: storedData.incomes ?? [],
+          exchangeRate: storedData.exchangeRate ?? 3,
+          savings: cleanedSavings,
+          expenses: storedData.expenses ?? [],
+          tax: storedData.tax ?? 0,
+          mandatoryExpenses: storedData.mandatoryExpenses ?? 0,
+        })
       } catch (error) {
         console.error('Ошибка загрузки финансовых данных:', error)
         setData(defaultFinancialData)
@@ -87,27 +80,27 @@ export const useFinancialData = () => {
       }
     }
     loadData()
-  }, [loadFinancialDataFromDB, saveFinancialDataImmediate])
+  }, [loadFinancialDataFromDB])
 
-  // Загрузка настроек из Firebase
+  // Загрузка настроек из хранилища
   useEffect(() => {
     const loadSettingsData = async () => {
       setSettingsLoading(true)
       setIsInitialLoad(true)
       try {
-        const firebaseSettings = await loadSettingsFromDB()
-        if (firebaseSettings) {
-          if (firebaseSettings.distributionRules) {
-            setDistributionRules(firebaseSettings.distributionRules)
+        const storedSettings = await loadSettingsFromDB()
+        if (storedSettings) {
+          if (storedSettings.mandatoryExpensesPercentage !== undefined) {
+            setMandatoryExpensesPercentage(storedSettings.mandatoryExpensesPercentage)
           }
-          if (firebaseSettings.mandatoryExpensesPercentage !== undefined) {
-            setMandatoryExpensesPercentage(firebaseSettings.mandatoryExpensesPercentage)
+          if (storedSettings.selectedPresetType) {
+            setSelectedPresetType(storedSettings.selectedPresetType)
           }
-          if (firebaseSettings.selectedPresetType) {
-            setSelectedPresetType(firebaseSettings.selectedPresetType)
+          if (storedSettings.customPercentages) {
+            setCustomPercentages(storedSettings.customPercentages)
           }
-          if (firebaseSettings.customPercentages) {
-            setCustomPercentages(firebaseSettings.customPercentages)
+          if (storedSettings.rulesEnabled !== undefined) {
+            setRulesEnabled(storedSettings.rulesEnabled)
           }
         }
       } catch (error) {
@@ -124,23 +117,19 @@ export const useFinancialData = () => {
     loadSettingsData()
   }, [loadSettingsFromDB])
 
-  // Сохранение настроек в Firebase (только после загрузки и только при реальных изменениях)
+  // Сохранение настроек (только после загрузки и только при реальных изменениях)
   useEffect(() => {
     if (!settingsLoading && !isInitialLoad) {
-      const settingsData = {
-        distributionRules,
+      saveSettingsDebounced({
         mandatoryExpensesPercentage,
         selectedPresetType,
         customPercentages,
-      }
-      saveSettingsDebounced(settingsData)
+      })
     }
-  }, [distributionRules, mandatoryExpensesPercentage, selectedPresetType, customPercentages, settingsLoading, isInitialLoad, saveSettingsDebounced])
+  }, [mandatoryExpensesPercentage, selectedPresetType, customPercentages, settingsLoading, isInitialLoad, saveSettingsDebounced])
 
   useEffect(() => {
     // При смене пресета обновляем только процент обязательных расходов
-    // Процент для копилок рассчитывается в компоненте из пресета
-    // НЕ сохраняем здесь, так как это вызовет useEffect сохранения
     if (selectedPresetType !== 'custom') {
       const presetPercentages: Record<'50-30-20' | '50-40-10', number> = {
         '50-30-20': 50,
@@ -156,25 +145,17 @@ export const useFinancialData = () => {
   const totalSavings = useMemo(() => calculateSavingsTotal(data.savings), [data.savings])
   const totalExpenses = useMemo(() => calculateExpensesTotal(data.expenses), [data.expenses])
   const balance = useMemo(
-    () =>
-      calculateBalance(
-        totalIncome,
-        totalSavings,
-        totalExpenses,
-        data.tax,
-        data.mandatoryExpenses
-      ),
+    () => calculateBalance(totalIncome, totalSavings, totalExpenses, data.tax, data.mandatoryExpenses),
     [totalIncome, totalSavings, totalExpenses, data.tax, data.mandatoryExpenses]
   )
 
   const updateIncomeItem = (id: string, amount: number) => {
     setData((prev) => {
-      const updatedIncomes = prev.incomes.map((item) => (item.id === id ? { ...item, amount } : item))
-      const newData = { ...prev, incomes: updatedIncomes }
-      
-      // Debounced сохранение при изменении суммы
+      const newData = {
+        ...prev,
+        incomes: prev.incomes.map((item) => (item.id === id ? { ...item, amount } : item)),
+      }
       saveFinancialDataDebounced(newData)
-      
       return newData
     })
   }
@@ -185,7 +166,6 @@ export const useFinancialData = () => {
         ...prev,
         incomes: [...prev.incomes, { id: Date.now().toString(), name, amount: 0, icon: getCategoryIcon(name) }],
       }
-      // Немедленное сохранение при добавлении
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -197,7 +177,6 @@ export const useFinancialData = () => {
         ...prev,
         incomes: prev.incomes.filter((item) => item.id !== id),
       }
-      // Немедленное сохранение при удалении
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -209,7 +188,6 @@ export const useFinancialData = () => {
         ...prev,
         incomes: prev.incomes.map((item) => (item.id === id ? { ...item, name } : item)),
       }
-      // Немедленное сохранение при изменении названия
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -225,7 +203,6 @@ export const useFinancialData = () => {
           amountUsd: calculateUsdAmount(item.amount, rate),
         })),
       }
-      // Немедленное сохранение при изменении курса
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -233,57 +210,25 @@ export const useFinancialData = () => {
 
   const updateSavingsItem = (id: string, amount: number, isCustom: boolean = true) => {
     setData((prev) => {
-      const item = prev.savings.find((s) => s.id === id)
       // Не позволяем редактировать суммы у групп
-      if (item?.isGroup) {
+      if (prev.savings.find((s) => s.id === id)?.isGroup) {
         return prev
       }
-      
-      const newSavings = prev.savings.map((item) =>
-        item.id === id
-          ? {
-            ...item,
-            amount,
-            amountUsd: calculateUsdAmount(amount, prev.exchangeRate),
-            isCustom,
-          }
-          : item
-      )
-      const newData = { ...prev, savings: newSavings }
-      
-      // Debounced сохранение при изменении суммы
+
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) =>
+          item.id === id
+            ? {
+              ...item,
+              amount,
+              amountUsd: calculateUsdAmount(amount, prev.exchangeRate),
+              isCustom,
+            }
+            : item
+        ),
+      }
       saveFinancialDataDebounced(newData)
-      
-      return newData
-    })
-  }
-
-  const updateExpenseItem = (id: string, amount: number) => {
-    setData((prev) => {
-      const newExpenses = prev.expenses.map((item) => (item.id === id ? { ...item, amount } : item))
-      const newData = { ...prev, expenses: newExpenses }
-      
-      // Debounced сохранение при изменении суммы
-      saveFinancialDataDebounced(newData)
-      
-      return newData
-    })
-  }
-
-  const updateTax = (tax: number) => {
-    setData((prev) => {
-      const newData = { ...prev, tax }
-      // Немедленное сохранение
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  const updateMandatoryExpenses = (mandatoryExpenses: number) => {
-    setData((prev) => {
-      const newData = { ...prev, mandatoryExpenses }
-      // Немедленное сохранение
-      saveFinancialDataImmediate(newData)
       return newData
     })
   }
@@ -300,11 +245,7 @@ export const useFinancialData = () => {
         isGroup: false,
         parentId: parentId || undefined,
       }
-      const newData = {
-        ...prev,
-        savings: [...prev.savings, newItem],
-      }
-      // Немедленное сохранение при добавлении
+      const newData = { ...prev, savings: [...prev.savings, newItem] }
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -312,9 +253,8 @@ export const useFinancialData = () => {
 
   const removeSavingsCategory = (id: string, deleteChildren: boolean = false) => {
     setData((prev) => {
-      const itemToDelete = prev.savings.find((item) => item.id === id)
-      const isGroup = itemToDelete?.isGroup === true
-      
+      const isGroup = prev.savings.find((item) => item.id === id)?.isGroup === true
+
       // Рекурсивная функция для поиска всех дочерних элементов
       const findAllChildren = (parentId: string, savingsList: SavingsItem[]): string[] => {
         const directChildren = savingsList
@@ -326,48 +266,24 @@ export const useFinancialData = () => {
         })
         return [...directChildren, ...nestedChildren]
       }
-      
-      let newSavings = [...prev.savings]
-      let idsToRemove = [id]
-      
-      if (isGroup) {
-        if (deleteChildren) {
-          // Удаляем группу и все её дочерние элементы
-          const allChildrenIds = new Set(findAllChildren(id, prev.savings))
-          allChildrenIds.add(id)
-          idsToRemove = Array.from(allChildrenIds)
-          newSavings = prev.savings.filter((item) => !allChildrenIds.has(item.id))
-        } else {
-          // Удаляем только группу, дочерние элементы выносим наверх (убираем parentId)
-          newSavings = prev.savings
-            .filter((item) => item.id !== id)
-            .map((item) => {
-              if (item.parentId === id) {
-                return { ...item, parentId: undefined }
-              }
-              return item
-            })
-        }
+
+      let newSavings: SavingsItem[]
+
+      if (isGroup && deleteChildren) {
+        // Удаляем группу вместе со всеми вложенными копилками
+        const allChildrenIds = new Set(findAllChildren(id, prev.savings))
+        allChildrenIds.add(id)
+        newSavings = prev.savings.filter((item) => !allChildrenIds.has(item.id))
+      } else if (isGroup) {
+        // Удаляем только группу, дочерние копилки выносим наверх
+        newSavings = prev.savings
+          .filter((item) => item.id !== id)
+          .map((item) => (item.parentId === id ? { ...item, parentId: undefined } : item))
       } else {
-        // Удаляем обычную копилку
         newSavings = prev.savings.filter((item) => item.id !== id)
       }
-      
-      // Удалить правила, связанные с удаляемыми копилками
-      setDistributionRules((prevRules) =>
-        prevRules
-          .map((rule) => ({
-            ...rule,
-            savingsItemIds: rule.savingsItemIds.filter((itemId) => !idsToRemove.includes(itemId)),
-          }))
-          .filter((rule) => rule.savingsItemIds.length > 0)
-      )
-      
-      const newData = {
-        ...prev,
-        savings: newSavings,
-      }
-      // Немедленное сохранение при удалении
+
+      const newData = { ...prev, savings: newSavings }
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -379,7 +295,136 @@ export const useFinancialData = () => {
         ...prev,
         savings: prev.savings.map((item) => (item.id === id ? { ...item, name } : item)),
       }
-      // Немедленное сохранение при изменении названия
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const updateSavingsIcon = (id: string, icon: string) => {
+    setData((prev) => {
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) => (item.id === id ? { ...item, icon } : item)),
+      }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const reorderSavings = (fromIndex: number, toIndex: number) => {
+    setData((prev) => {
+      const newSavings = [...prev.savings]
+      const [removed] = newSavings.splice(fromIndex, 1)
+      newSavings.splice(toIndex, 0, removed)
+      const newData = { ...prev, savings: newSavings }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const getSavingsChildren = (parentId: string) => {
+    return data.savings.filter((item) => item.parentId === parentId)
+  }
+
+  const calculateGroupTotals = (groupId: string) => {
+    const children = getSavingsChildren(groupId)
+    return {
+      totalAmount: children.reduce((sum, child) => sum + child.amount, 0),
+      totalAmountUsd: children.reduce((sum, child) => sum + child.amountUsd, 0),
+    }
+  }
+
+  const addSavingsGroup = (name: string) => {
+    setData((prev) => {
+      const newGroup: SavingsItem = {
+        id: Date.now().toString(),
+        name,
+        amount: 0,
+        amountUsd: 0,
+        isCustom: true,
+        icon: getCategoryIcon(name),
+        isGroup: true,
+        parentId: undefined,
+      }
+      const newData = { ...prev, savings: [...prev.savings, newGroup] }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const convertSavingsToGroup = (id: string) => {
+    setData((prev) => {
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) =>
+          item.id === id ? { ...item, isGroup: true, amount: 0, amountUsd: 0 } : item
+        ),
+      }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const convertGroupToSavings = (id: string) => {
+    setData((prev) => {
+      // Перемещаем всех детей группы на верхний уровень
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) => {
+          if (item.id === id) {
+            return { ...item, isGroup: false }
+          }
+          if (item.parentId === id) {
+            return { ...item, parentId: undefined }
+          }
+          return item
+        }),
+      }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const moveSavingsToGroup = (savingsId: string, groupId: string | null) => {
+    setData((prev) => {
+      // Не позволяем перемещать группу в группу (только один уровень вложенности)
+      if (prev.savings.find((s) => s.id === savingsId)?.isGroup && groupId !== null) {
+        return prev
+      }
+
+      const newData = {
+        ...prev,
+        savings: prev.savings.map((item) =>
+          item.id === savingsId ? { ...item, parentId: groupId || undefined } : item
+        ),
+      }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const updateExpenseItem = (id: string, amount: number) => {
+    setData((prev) => {
+      const newData = {
+        ...prev,
+        expenses: prev.expenses.map((item) => (item.id === id ? { ...item, amount } : item)),
+      }
+      saveFinancialDataDebounced(newData)
+      return newData
+    })
+  }
+
+  const updateTax = (tax: number) => {
+    setData((prev) => {
+      const newData = { ...prev, tax }
+      saveFinancialDataImmediate(newData)
+      return newData
+    })
+  }
+
+  const updateMandatoryExpenses = (mandatoryExpenses: number) => {
+    setData((prev) => {
+      const newData = { ...prev, mandatoryExpenses }
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -391,7 +436,6 @@ export const useFinancialData = () => {
         ...prev,
         expenses: [...prev.expenses, { id: Date.now().toString(), name, amount: 0, icon: getCategoryIcon(name) }],
       }
-      // Немедленное сохранение при добавлении
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -403,7 +447,6 @@ export const useFinancialData = () => {
         ...prev,
         expenses: prev.expenses.filter((item) => item.id !== id),
       }
-      // Немедленное сохранение при удалении
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -419,7 +462,6 @@ export const useFinancialData = () => {
             : item
         ),
       }
-      // Немедленное сохранение при изменении названия
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -431,7 +473,6 @@ export const useFinancialData = () => {
         ...prev,
         incomes: prev.incomes.map((item) => (item.id === id ? { ...item, icon } : item)),
       }
-      // Немедленное сохранение при изменении иконки
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -443,19 +484,6 @@ export const useFinancialData = () => {
         ...prev,
         expenses: prev.expenses.map((item) => (item.id === id ? { ...item, icon } : item)),
       }
-      // Немедленное сохранение при изменении иконки
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  const updateSavingsIcon = (id: string, icon: string) => {
-    setData((prev) => {
-      const newData = {
-        ...prev,
-        savings: prev.savings.map((item) => (item.id === id ? { ...item, icon } : item)),
-      }
-      // Немедленное сохранение при изменении иконки
       saveFinancialDataImmediate(newData)
       return newData
     })
@@ -467,50 +495,9 @@ export const useFinancialData = () => {
       const [removed] = newExpenses.splice(fromIndex, 1)
       newExpenses.splice(toIndex, 0, removed)
       const newData = { ...prev, expenses: newExpenses }
-      // Немедленное сохранение при изменении порядка
       saveFinancialDataImmediate(newData)
       return newData
     })
-  }
-
-  const reorderSavings = (fromIndex: number, toIndex: number) => {
-    setData((prev) => {
-      const newSavings = [...prev.savings]
-      const [removed] = newSavings.splice(fromIndex, 1)
-      newSavings.splice(toIndex, 0, removed)
-      const newData = { ...prev, savings: newSavings }
-      // Немедленное сохранение при изменении порядка
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  const addDistributionRule = (rule: Omit<DistributionRule, 'id'>) => {
-    const newRule: DistributionRule = {
-      ...rule,
-      id: Date.now().toString(),
-    }
-    setDistributionRules((prev) => [...prev, newRule])
-  }
-
-  const updateDistributionRule = (id: string, updates: Partial<DistributionRule>) => {
-    setDistributionRules((prev) =>
-      prev.map((rule) => (rule.id === id ? { ...rule, ...updates } : rule))
-    )
-  }
-
-  const removeDistributionRule = (id: string) => {
-    setDistributionRules((prev) => prev.filter((rule) => rule.id !== id))
-  }
-
-  // Функция applyRules больше не используется - правила служат только как рекомендация
-  // Суммы в копилках меняются только пользователем вручную
-  const applyRules = (rules: DistributionRule[], mandatoryPercentage?: number) => {
-    setDistributionRules(rules)
-    if (mandatoryPercentage !== undefined) {
-      setMandatoryExpensesPercentage(mandatoryPercentage)
-    }
-    // Не применяем правила автоматически - только обновляем процент обязательных расходов
   }
 
   // Ручное сохранение (для кнопки "Сохранить")
@@ -518,104 +505,8 @@ export const useFinancialData = () => {
     await saveFinancialDataImmediate(data)
   }
 
-  // Вспомогательные функции для работы с группами
-  const getSavingsChildren = (parentId: string) => {
-    return data.savings.filter((item) => item.parentId === parentId)
-  }
-
-  const calculateGroupTotals = (groupId: string) => {
-    const children = getSavingsChildren(groupId)
-    const totalAmount = children.reduce((sum, child) => sum + child.amount, 0)
-    const totalAmountUsd = children.reduce((sum, child) => sum + child.amountUsd, 0)
-    return { totalAmount, totalAmountUsd }
-  }
-
-  // Создание новой группы
-  const addSavingsGroup = (name: string) => {
-    setData((prev) => {
-      const newGroup: SavingsItem = {
-        id: Date.now().toString(),
-        name,
-        amount: 0,
-        amountUsd: 0,
-        isCustom: true,
-        icon: getCategoryIcon(name),
-        isGroup: true,
-        parentId: undefined,
-      }
-      const newData = {
-        ...prev,
-        savings: [...prev.savings, newGroup],
-      }
-      // Немедленное сохранение при добавлении
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  // Конвертация обычной копилки в группу
-  const convertSavingsToGroup = (id: string) => {
-    setData((prev) => {
-      const newData = {
-        ...prev,
-        savings: prev.savings.map((item) =>
-          item.id === id
-            ? { ...item, isGroup: true, amount: 0, amountUsd: 0 }
-            : item
-        ),
-      }
-      // Немедленное сохранение при конвертации
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  // Конвертация группы обратно в обычную копилку
-  const convertGroupToSavings = (id: string) => {
-    setData((prev) => {
-      // Перемещаем всех детей группы на верхний уровень
-      const newSavings = prev.savings.map((item) => {
-        if (item.id === id) {
-          return { ...item, isGroup: false }
-        }
-        if (item.parentId === id) {
-          return { ...item, parentId: undefined }
-        }
-        return item
-      })
-      const newData = { ...prev, savings: newSavings }
-      // Немедленное сохранение при конвертации
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
-  // Перемещение копилки в группу или из группы
-  const moveSavingsToGroup = (savingsId: string, groupId: string | null) => {
-    setData((prev) => {
-      const savingsItem = prev.savings.find((s) => s.id === savingsId)
-      // Не позволяем перемещать группу в группу (только один уровень вложенности)
-      if (savingsItem?.isGroup && groupId !== null) {
-        return prev
-      }
-      
-      const newData = {
-        ...prev,
-        savings: prev.savings.map((item) =>
-          item.id === savingsId
-            ? { ...item, parentId: groupId || undefined }
-            : item
-        ),
-      }
-      // Немедленное сохранение при перемещении
-      saveFinancialDataImmediate(newData)
-      return newData
-    })
-  }
-
   return {
     data,
-    distributionRules,
     totalIncome,
     totalSavings,
     totalExpenses,
@@ -634,30 +525,25 @@ export const useFinancialData = () => {
     addSavingsCategory,
     removeSavingsCategory,
     updateSavingsCategoryName,
-    addExpenseCategory,
-    removeExpenseCategory,
-    updateExpenseCategoryName,
-    updateIncomeIcon,
-    updateExpenseIcon,
     updateSavingsIcon,
-    reorderExpenses,
     reorderSavings,
-    addDistributionRule,
-    updateDistributionRule,
-    removeDistributionRule,
-    applyRules,
-    mandatoryExpensesPercentage,
-    selectedPresetType,
-    setSelectedPresetType,
-    customPercentages,
-    setCustomPercentages,
-    // Функции для работы с группами
     getSavingsChildren,
     calculateGroupTotals,
     addSavingsGroup,
     convertSavingsToGroup,
     convertGroupToSavings,
     moveSavingsToGroup,
+    addExpenseCategory,
+    removeExpenseCategory,
+    updateExpenseCategoryName,
+    updateIncomeIcon,
+    updateExpenseIcon,
+    reorderExpenses,
+    mandatoryExpensesPercentage,
+    selectedPresetType,
+    setSelectedPresetType,
+    customPercentages,
+    setCustomPercentages,
+    rulesEnabled,
   }
 }
-

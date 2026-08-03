@@ -134,7 +134,7 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
       return sum + (Math.round(item.amount) / totalIncome * 100)
     }, 0)
     : 0
-  const isOverBudget = availableForSavings > 0 && total > availableForSavings
+  const isOverBudget = total > availableForSavings
   const overBudgetAmount = isOverBudget ? total - availableForSavings : 0
 
   const handleAddCategory = () => {
@@ -323,7 +323,9 @@ export const SavingsSection: React.FC<SavingsSectionProps> = ({
         </div>
         {!isCollapsed && (
           <div className={`available-amount-info ${isOverBudget ? 'warning' : ''}`}>
-            <span className="available-label">Доступно для копилок:</span>
+            <span className="available-label">
+              {savingsPercentage > 0 ? 'Доступно для копилок:' : 'Свободно после расходов:'}
+            </span>
             <span className="available-value">{availableForSavings.toLocaleString('ru-RU')} Br</span>
             <span className="available-percentage">({availablePercentage.toFixed(1)}% от дохода)</span>
             {isOverBudget && (
