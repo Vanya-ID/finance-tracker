@@ -53,14 +53,14 @@ const getUserId = async (): Promise<string | null> => {
     return null
   }
 
-  const { data } = await supabase.auth.getSession()
+  const { data } = await withTimeout(supabase.auth.getSession(), 'Проверка сессии')
   return data.session?.user.id ?? null
 }
 
 const describeError = (error: unknown): string => {
   const message = error instanceof Error ? error.message : String(error)
 
-  if (/Failed to fetch|NetworkError|время ожидания/i.test(message)) {
+  if (/Failed to fetch|NetworkError|время ожидания|aborted|timed out|TimeoutError/i.test(message)) {
     return 'База данных недоступна (возможно, проект Supabase на паузе). Данные сохранены локально.'
   }
 
@@ -78,7 +78,16 @@ type RemoteRow = {
 }
 
 export const sync = async (): Promise<{ changed: boolean }> => {
-  const userId = await getUserId()
+  let userId: string | null = null
+
+  try {
+    userId = await getUserId()
+  } catch (error) {
+    console.error('Ошибка синхронизации:', error)
+    setState({ status: 'error', error: describeError(error) })
+    return { changed: false }
+  }
+
   if (!userId || !supabase) {
     setState({ status: 'signed-out', error: null })
     return { changed: false }

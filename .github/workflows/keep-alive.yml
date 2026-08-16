@@ -1,11 +1,19 @@
 name: Keep Supabase awake
 
 # Бесплатный тариф Supabase ставит проект на паузу после ~7 дней без обращений.
-# Раз в 3 дня делаем запрос к REST API, чтобы этого не происходило.
+# Раз в сутки делаем запрос к REST API, чтобы этого не происходило.
+# Именно раз в сутки, а не раз в 3 дня: GitHub при нагрузке молча пропускает
+# запуски по расписанию, и при шаге в 3 дня одного пропуска хватает,
+# чтобы окно в 7 дней осталось без единого обращения к базе.
+#
+# Если проект всё-таки уснул, пинг его не разбудит: домен проекта перестаёт
+# принимать соединения. Поэтому второй шаг идёт в Management API
+# (api.supabase.com — отдельный хост, доступен и для спящего проекта)
+# и поднимает проект через POST /v1/projects/{ref}/restore.
 
 on:
   schedule:
-    - cron: '0 6 */3 * *'
+    - cron: '17 6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase REST API
+        id: ping
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -22,22 +31,104 @@ jobs:
             exit 1
           fi
 
+          # Без `|| echo 000`: curl при ошибке соединения сам печатает "000",
+          # а fallback дописывал вторые три нуля — получалось "000000",
+          # мимо строковой проверки на паузу.
           status=$(curl -sS -o response.txt -w '%{http_code}' --max-time 30 \
             "$SUPABASE_URL/rest/v1/user_data?select=key&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY" || echo 000)
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY") || true
+          status=${status:-000}
 
           echo "HTTP $status"
           cat response.txt || true
 
-          # Проект на паузе не отвечает вообще — код 000. Любой HTTP-ответ
-          # означает, что база жива и таймер неактивности сброшен.
-          # RLS вернёт анонимному запросу пустой список — это ожидаемо.
-          if [ "$status" = "000" ]; then
-            echo "::error::Нет ответа от базы — проект на паузе или удалён"
-            exit 1
-          elif [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+          # Таймер неактивности сбрасывает только запрос, реально дошедший до
+          # базы. Ответы 4xx/5xx отбиваются на Kong/PostgREST, до Postgres не
+          # доходят — и проект засыпает при формально «зелёном» пинге.
+          # Поэтому успехом считаем только 2xx с JSON-массивом в теле
+          # (RLS вернёт анонимному запросу пустой массив — это ожидаемо).
+          alive=false
+          if [ "$status" -ge 200 ] 2>/dev/null && [ "$status" -lt 300 ] 2>/dev/null; then
+            if head -c 1 response.txt | grep -q '\['; then
+              alive=true
+            fi
+          fi
+
+          echo "alive=$alive" >> "$GITHUB_OUTPUT"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          if [ "$alive" = true ]; then
             echo "✅ База отвечает, таймер неактивности сброшен"
           else
-            echo "::warning::База ответила HTTP $status (пауза сброшена, но запрос неуспешен — проверьте схему и ключи)"
+            echo "::warning::Пинг неуспешен (HTTP $status) — пробуем поднять проект"
           fi
+
+      - name: Restore paused project
+        if: steps.ping.outputs.alive != 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PING_STATUS: ${{ steps.ping.outputs.status }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::Проект недоступен (HTTP $PING_STATUS), а секрет SUPABASE_ACCESS_TOKEN не задан — поднять автоматически нечем"
+            exit 1
+          fi
+
+          # ref проекта — поддомен в URL: https://<ref>.supabase.co
+          ref=$(echo "$SUPABASE_URL" | sed -E 's#^https?://([^.]+)\..*#\1#')
+          echo "Проект: $ref"
+
+          api() {
+            curl -sS --max-time 30 -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "$@"
+          }
+
+          project_status() {
+            api "https://api.supabase.com/v1/projects/$ref" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status","UNKNOWN"))'
+          }
+
+          current=$(project_status) || {
+            echo "::error::Management API недоступен или токен неверный"
+            exit 1
+          }
+          echo "Статус проекта: $current"
+
+          case "$current" in
+            ACTIVE_HEALTHY)
+              echo "::error::Проект активен, но REST-запрос не прошёл (HTTP $PING_STATUS) — проблема в ключах или схеме, а не в паузе"
+              exit 1
+              ;;
+            INACTIVE|PAUSE_FAILED)
+              echo "Проект на паузе, запускаем восстановление"
+              api -X POST "https://api.supabase.com/v1/projects/$ref/restore" \
+                -H 'Content-Type: application/json'
+              echo
+              ;;
+            RESTORING|COMING_UP)
+              echo "Восстановление уже идёт, ждём"
+              ;;
+            *)
+              echo "::error::Неожиданный статус проекта: $current"
+              exit 1
+              ;;
+          esac
+
+          # Восстановление занимает несколько минут — ждём до 10.
+          for _ in $(seq 1 20); do
+            sleep 30
+            current=$(project_status) || current=UNKNOWN
+            echo "Статус: $current"
+            if [ "$current" = "ACTIVE_HEALTHY" ]; then
+              echo "✅ Проект поднят"
+              exit 0
+            fi
+            if [ "$current" = "RESTORE_FAILED" ] || [ "$current" = "INIT_FAILED" ]; then
+              echo "::error::Восстановление не удалось: $current"
+              exit 1
+            fi
+          done
+
+          echo "::error::Проект не поднялся за 10 минут (статус $current)"
+          exit 1

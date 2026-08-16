@@ -61,14 +61,19 @@ export const getSessionUser = async (): Promise<User | null> => {
     return null
   }
 
-  const { data, error } = await supabase.auth.getSession()
+  try {
+    const { data, error } = await supabase.auth.getSession()
 
-  if (error) {
+    if (error) {
+      console.error('Ошибка получения сессии:', error)
+      return null
+    }
+
+    return data.session?.user ?? null
+  } catch (error) {
     console.error('Ошибка получения сессии:', error)
     return null
   }
-
-  return data.session?.user ?? null
 }
 
 export const onAuthStateChanged = (callback: (user: User | null) => void): (() => void) => {
